@@ -84,5 +84,5 @@ cpp_includes_use_forward_slash = true
 [*]
 charset = utf-8-bom
 
-[*.asm]
+[*.{asm,inc}]
 charset = utf-8
