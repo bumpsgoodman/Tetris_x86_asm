@@ -1,4 +1,4 @@
-EXTRN GetStdHandle@4 : PROC
+﻿EXTRN GetStdHandle@4 : PROC
 EXTRN WriteFile@20 : PROC
 
 EXTRN GetConsoleMode@8 : PROC
