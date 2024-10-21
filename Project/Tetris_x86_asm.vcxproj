@@ -98,7 +98,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>kernel32.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
-      <AdditionalOptions>/ALIGN:16 %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <ProjectReference>
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
@@ -151,6 +150,7 @@
   <ItemGroup>
     <None Include="..\Source\AsciiUtil.inc" />
     <None Include="..\Source\ConsoleUtil.Inc" />
+    <None Include="Random.inc" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\Source\Main.asm" />

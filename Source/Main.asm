@@ -4,6 +4,7 @@ title Tetris
 .model flat, stdcall
 
 INCLUDE ConsoleUtil.inc
+INCLUDE Random.inc
 
 EXTRN ExitProcess@4 : PROC
 
@@ -61,37 +62,48 @@ BLOCK_SHAPE_T   EQU 4
 BLOCK_SHAPE_S   EQU 5
 BLOCK_SHAPE_Z   EQU 6
 
+BLOCK_OFFSETS   BYTE    -1, 0, 1, 0, 2, 0           ; I
+                BYTE    1, 0, 0, 1, 1, 1            ; O
+                BYTE    -1, 0, -1, -1, 1, 0         ; L
+                BYTE    -1, 0, 1, 0, 1, -1          ; J
+                BYTE    -1, 0, 1, 0, 0, -1          ; T
+                BYTE    -1, 0, 0, -1, 1, -1         ; S
+                BYTE    1, 0, 0, -1, -1, -1         ; Z
+
 board       BYTE   BOARD_ROWS * BOARD_COLS DUP (BOARD_STATE_SPACE)
 
-blockShape  DWORD   ?
+blockShape  BYTE    ?
 blockX      BYTE    ?
 blockY      BYTE    ?
-
-
 
 ; NEXT
 ; -------------------------------------------------------------------------------------------------------
 
 NEXT_SECTION_TEXT       BYTE    'NEXT', 0
 
+nextBlockSet0   BYTE    7   DUP (?)
+nextBlockSet1   BYTE    7   DUP (?)
+nextBlockIndex  BYTE    ?
+
+; frame timer
+; -------------------------------------------------------------------------------------------------------
+
+FRAME_TIME  EQU 33  ; 30 fps
+start_time  DWORD   ?
+end_time    DWORD   ?
+
 .code
 
 main PROC
     ; 초기화
     call InitConsole
-
-    push OFFSET blockY
-    push OFFSET blockX
-    push blockShape
-    call InitBlockPos
-
-    lea eax, board
-    mov BYTE PTR [eax + 63], BOARD_STATE_BLOCK
-    mov BYTE PTR [eax + 64], BOARD_STATE_BLOCK
-    mov BYTE PTR [eax + 54], BOARD_STATE_BLOCK
-    mov BYTE PTR [eax + 55], BOARD_STATE_BLOCK
+    call InitGame
 
     call DrawBoard
+
+    ; 프레임 시작 시간
+    call GetTickCount@0
+    mov start_time, eax
 
 lb_loop:
     ; status 섹션 그리기
@@ -139,15 +151,118 @@ lb_loop:
     push 12
     call SetConsoleBackColor
 
-    ;jmp lb_loop
+lb_wait_next_frame:
+    ; 프레임 끝 시간
+    call GetTickCount@0
+    mov end_time, eax
+
+    ; end_time - start_time
+    mov ecx, start_time
+    sub eax, ecx
+
+    cmp eax, FRAME_TIME
+    jge lb_loop
+
+    mov eax, end_time
+    mov start_time, eax
+    jmp lb_wait_next_frame
 
     ; main 함수 종료
     push 0
     call ExitProcess@4
 main ENDP
 
+InitGame PROC
+    push edi
+
+    push OFFSET nextBlockSet0
+    call GenerateBlockSet
+
+    push OFFSET nextBlockSet1
+    call GenerateBlockSet
+
+    ; 첫 블럭 불러오기
+    mov al, BYTE PTR [nextBlockSet0]
+    mov blockShape, al
+
+    ; 다음 블럭 세팅
+    mov al, BYTE PTR [nextBlockSet1]
+    mov BYTE PTR [nextBlockSet0], al
+
+    mov nextBlockIndex, 1
+
+    ; 블럭 초기 위치 세팅
+    xor eax, eax
+    mov al, blockShape
+    push OFFSET blockY
+    push OFFSET blockX
+    push eax
+    call InitBlockPos
+
+    xor eax, eax
+    push BOARD_STATE_BLOCK
+    mov al, blockShape
+    push eax
+    mov al, blockY
+    push eax
+    mov al, blockX
+    push eax
+    call TryBlockToBoard
+
+    pop edi
+    ret
+InitGame ENDP
+
+UpdateGame PROC
+    
+    
+    ret
+UpdateGame ENDP
+
+GenerateBlockSet PROC pOutBlocks:PTR BYTE
+    push ebx
+    push edi
+
+    xor edx, edx
+    mov edi, pOutBlocks
+
+lb_loop:
+    ; edx가 2^7 - 1 과 같은 경우, 중복 없이 7개 다 만들어짐
+    cmp edx, 07Fh
+    je lb_return
+
+    ; edx 백업
+    push edx
+
+    ; 0 ~ 6까지 랜덤값 생성
+    push 7
+    call GetRandomRange
+
+    pop edx
+    
+    ; 1 << random number
+    mov ecx, eax
+    mov ebx, 1
+    shl ebx, cl
+
+    test ebx, edx
+    jne lb_loop
+
+    mov BYTE PTR [edi], al
+    inc edi
+
+    or edx, ebx
+
+    jmp lb_loop
+
+lb_return:
+    pop ebx
+    pop edi
+    ret
+GenerateBlockSet ENDP
+
 ; shape에 따른 초기 x, y 위치 결정하는 함수
-InitBlockPos PROC shape:DWORD, pOutX:PTR BYTE, pOutY: PTR BYTE
+InitBlockPos PROC shape:BYTE, pOutX:PTR BYTE, pOutY: PTR BYTE
     xor edx, edx
     mov eax, BOARD_COLS
     mov ecx, 2
@@ -170,6 +285,59 @@ lb_return:
     mov BYTE PTR [edx], al      ; *pOutY = 2 or 3
     ret
 InitBlockPos ENDP
+
+; 반환값 - 성공 시 1, 아니면 0
+TryBlockToBoard PROC x:BYTE, y:BYTE, shape:BYTE, state:BYTE
+    LOCAL actualX:BYTE
+    LOCAL actualY:BYTE
+
+    push edi
+    push esi
+
+    lea esi, BLOCK_OFFSETS
+    mov eax, 6
+    mul shape
+    add esi, eax
+
+    xor eax, eax
+    xor edx, edx
+    mov ecx, 3
+lb_loop:
+    mov al, x
+    mov dl, BYTE PTR [esi]
+    add eax, edx
+    mov actualX, al
+
+    mov al, y
+    mov dl, BYTE PTR [esi + 1]
+    add eax, edx
+    mov actualY, al
+
+    mov dl, state
+
+    lea edi, board
+    mov al, BOARD_COLS
+    mul actualY
+    add al, actualX
+    add edi, eax
+    mov BYTE PTR [edi], dl
+
+    add esi, 2
+
+    loop lb_loop
+
+    lea edi, board
+    mov al, BOARD_COLS
+    mul y
+    add al, x
+    add edi, eax
+    mov BYTE PTR [edi], dl
+
+lb_return:
+    pop edi
+    pop esi
+    ret
+TryBlockToBoard ENDP
 
 DrawBoard PROC
     LOCAL character[3]:BYTE
