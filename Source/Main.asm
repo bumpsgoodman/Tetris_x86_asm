@@ -294,27 +294,33 @@ TryBlockToBoard PROC x:BYTE, y:BYTE, shape:BYTE, state:BYTE
     push edi
     push esi
 
+    ; TODO: 범위 검사
+    
+    ; TODO: 실제 보드에 들어갈 수 있는지 검사
+
+    ; BLOCK_OFFSETS 구하기
     lea esi, BLOCK_OFFSETS
     mov eax, 6
     mul shape
     add esi, eax
 
-    xor eax, eax
-    xor edx, edx
     mov ecx, 3
 lb_loop:
+    ; actualX 구하기
     mov al, x
     mov dl, BYTE PTR [esi]
-    add eax, edx
+    add al, dl
     mov actualX, al
 
+    ; actualY 구하기
     mov al, y
     mov dl, BYTE PTR [esi + 1]
-    add eax, edx
+    add al, dl
     mov actualY, al
 
     mov dl, state
 
+    ; [actualX, actualY] 출력
     lea edi, board
     mov al, BOARD_COLS
     mul actualY
@@ -326,6 +332,7 @@ lb_loop:
 
     loop lb_loop
 
+    ; [x, y] 출력
     lea edi, board
     mov al, BOARD_COLS
     mul y
