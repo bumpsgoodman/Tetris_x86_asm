@@ -85,7 +85,7 @@ nextBlockSet0   BYTE    7   DUP (?)
 nextBlockSet1   BYTE    7   DUP (?)
 nextBlockIndex  BYTE    ?
 
-; frame timer
+; timer
 ; -------------------------------------------------------------------------------------------------------
 
 FRAME_TIME  EQU 33  ; 30 fps
