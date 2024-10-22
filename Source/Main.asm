@@ -24,6 +24,11 @@ SEQ_MOVE_RIGHT_CURSOR2  BYTE    1Bh, '[2C', 0                       ; 커서 오
 SEQ_ASCII_DRAWING_MODE  BYTE    1Bh, '(B', 0                        ; ASCII 모드로 그리기
 SEQ_LINE_DRAWING_MODE   BYTE    1Bh, '(0', 0                        ; DEC Line 모드로 그리기
 
+SEQ_KEY_UP_ARROW        BYTE    1Bh, '[A', 0                        ; 위쪽 방향키
+SEQ_KEY_DOWN_ARROW      BYTE    1Bh, '[B', 0                        ; 아래쪽 방향키
+SEQ_KEY_RIGHT_ARROW     BYTE    1Bh, '[C', 0                        ; 오른쪽 방향키
+SEQ_KEY_LEFT_ARROW      BYTE    1Bh, '[D', 0                        ; 왼쪽 방향키
+
 SEQ_TOP_LEFT_LINE       BYTE    'l', 0
 SEQ_TOP_RIGHT_LINE      BYTE    'k', 0
 SEQ_BOTTOM_LEFT_LINE    BYTE    'm', 0
@@ -76,6 +81,8 @@ blockShape  BYTE    ?
 blockX      BYTE    ?
 blockY      BYTE    ?
 
+readBuffer  BYTE    4   DUP (0)
+
 ; NEXT
 ; -------------------------------------------------------------------------------------------------------
 
@@ -106,50 +113,9 @@ main PROC
     mov start_time, eax
 
 lb_loop:
-    ; status 섹션 그리기
-    push LENGTHOF STATUS_SECTION_TEXT
-    push OFFSET STATUS_SECTION_TEXT
-    push 7
-    push 18
-    push 1
-    push 1
-    call DrawSection
-
-    ; help 섹션 그리기
-    push LENGTHOF HELP_SECTION_TEXT
-    push OFFSET HELP_SECTION_TEXT
-    push 24
-    push 20
-    push 8
-    push 1
-    call DrawSection
-
-    ; game 섹션 그리기
-    push LENGTHOF GAME_SECTION_TEXT
-    push OFFSET GAME_SECTION_TEXT
-    push 24
-    push 47
-    push 1
-    push 25
-    call DrawSection
-
-    ; next 섹션 그리기
-    push LENGTHOF NEXT_SECTION_TEXT
-    push OFFSET NEXT_SECTION_TEXT
-    push 24
-    push 65
-    push 1
-    push 48
-    call DrawSection
-
-    push 50
-    push 1
-    call SetConsoleXY
-
-    push 12
-    push 12
-    push 12
-    call SetConsoleBackColor
+    call InputGame
+    call UpdateGame
+    call DrawGame
 
 lb_wait_next_frame:
     ; 프레임 끝 시간
@@ -199,8 +165,60 @@ InitGame PROC
     push eax
     call InitBlockPos
 
-    xor eax, eax
+    pop edi
+    ret
+InitGame ENDP
+
+InputGame PROC
+    push edi
+    push esi
+
+    push LENGTHOF readBuffer
+    push OFFSET readBuffer
+    call ReadConsoleMsg
+
+    test eax, eax
+    jz lb_return
+
+    ; 읽은 데이터 불러오기
+    ;mov eax, readBuffer
+    
+check_left_arrow:
+    ; 왼쪽 방향키가 눌렸는지 확인
+    ;cmp eax, SEQ_KEY_LEFT_ARROW
+    ;jne check_right_arrow
+    push 0
+    call ExitProcess@4
+
+check_right_arrow:
+    ; 오른쪽 방향키가 눌렸는지 확인
+    ;cmp eax, SEQ_KEY_RIGHT_ARROW
+    ;jne check_down_arrow
+
+check_down_arrow:
+    ; 아래쪽 방향키가 눌렸는지 확인
+    ;cmp eax, SEQ_KEY_DOWN_ARROW
+    ;jne check_up_arrow
+
+check_up_arrow:
+    ; 위쪽 방향키가 눌렸는지 확인
+    ;cmp eax, SEQ_KEY_UP_ARROW
+    ;jne check_right_arrow
+
+
+
+lb_return:
+    call FlushConsoleInput
+
+    pop esi
+    pop edi
+    ret
+InputGame ENDP
+
+UpdateGame PROC
+    ; 현재 블록을 보드에 넣기 시도
     push BOARD_STATE_BLOCK
+    xor eax, eax
     mov al, blockShape
     push eax
     mov al, blockY
@@ -208,16 +226,60 @@ InitGame PROC
     mov al, blockX
     push eax
     call TryBlockToBoard
-
-    pop edi
-    ret
-InitGame ENDP
-
-UpdateGame PROC
-    
     
     ret
 UpdateGame ENDP
+
+DrawGame PROC
+    ; status 섹션 그리기
+    push LENGTHOF STATUS_SECTION_TEXT
+    push OFFSET STATUS_SECTION_TEXT
+    push 7
+    push 18
+    push 1
+    push 1
+    call DrawSection
+
+    ; help 섹션 그리기
+    push LENGTHOF HELP_SECTION_TEXT
+    push OFFSET HELP_SECTION_TEXT
+    push 24
+    push 20
+    push 8
+    push 1
+    call DrawSection
+
+    ; game 섹션 그리기
+    push LENGTHOF GAME_SECTION_TEXT
+    push OFFSET GAME_SECTION_TEXT
+    push 24
+    push 47
+    push 1
+    push 25
+    call DrawSection
+
+    ; next 섹션 그리기
+    push LENGTHOF NEXT_SECTION_TEXT
+    push OFFSET NEXT_SECTION_TEXT
+    push 24
+    push 65
+    push 1
+    push 48
+    call DrawSection
+
+    push 50
+    push 1
+    call SetConsoleXY
+
+    push 12
+    push 12
+    push 12
+    call SetConsoleBackColor
+
+    call DrawBoard
+
+    ret
+DrawGame ENDP
 
 GenerateBlockSet PROC pOutBlocks:PTR BYTE
     push ebx

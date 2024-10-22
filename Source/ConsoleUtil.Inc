@@ -1,5 +1,7 @@
 EXTRN GetStdHandle@4 : PROC
 EXTRN WriteFile@20 : PROC
+EXTRN ReadFile@20 : PROC
+EXTRN FlushConsoleInputBuffer@4 : PROC
 
 EXTRN GetConsoleMode@8 : PROC
 EXTRN SetConsoleMode@8 : PROC
@@ -14,23 +16,46 @@ SEQ_HIDE_CURSOR BYTE 1Bh, '[?25l', 0  ; 커서 숨김 시퀀스
 
 .code
 InitConsole PROC
-    LOCAL consoleMode:DWORD
+    LOCAL stdOutMode:DWORD
+    LOCAL stdInMode:DWORD
+
+    ; STD_INPUT 핸들 얻기
+    push -10
+    call GetStdHandle@4
+    mov STD_IN, eax
 
     ; STD_OUTPUT 핸들 얻기
     push -11
     call GetStdHandle@4
     mov STD_OUT, eax
 
-    ; 콘솔 모드 얻기
-    lea eax, consoleMode
+    ; STD_OUTPUT 콘솔 모드 얻기
+    lea eax, stdOutMode
     push eax
     push STD_OUT
     call GetConsoleMode@8
 
-    ; VT 모드 켜기
-    or consoleMode, 4   ; 4 = ENABLE_VIRTUAL_TERMINAL_PROCESSING
-    push consoleMode
+    ; STD_OUTPUT VT 모드 켜기
+    or stdOutMode, 4   ; ENABLE_VIRTUAL_TERMINAL_PROCESSING
+    push stdOutMode
     push STD_OUT
+    call SetConsoleMode@8
+
+    ; STD_INPUT 콘솔 모드 얻기
+    lea eax, stdInMode
+    push eax
+    push STD_IN
+    call GetConsoleMode@8
+    
+    ; STD_INPUT VT 모드 켜기
+    or stdInMode, 512 ; ENABLE_VIRTUAL_TERMINAL_INPUT
+    or stdInMode, 8   ; ENABLE_WINDOW_INPUT
+    or stdInMode, 16  ; ENABLE_MOUSE_INPUT
+    mov eax, 6
+    not eax
+    and stdInMode, eax
+    push stdInMode
+    push STD_IN
     call SetConsoleMode@8
 
     ; 커서 없애기
@@ -51,6 +76,24 @@ PrintConsoleMsg PROC msg:PTR BYTE, msgLen:DWORD
 
     ret
 PrintConsoleMsg ENDP
+
+ReadConsoleMsg PROC msg:PTR BYTE, msgLen:DWORD
+    push 0
+    push 0
+    push msgLen
+    push msg
+    push STD_IN
+    call ReadFile@20
+
+    ret
+ReadConsoleMsg ENDP
+
+FlushConsoleInput PROC
+    push STD_IN
+    call FlushConsoleInputBuffer@4
+    
+    ret
+FlushConsoleInput ENDP
 
 ; 지정된 [r/g/b]로 텍스트 색상 변경
 ; r - 0 ~ 255
