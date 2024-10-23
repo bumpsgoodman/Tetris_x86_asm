@@ -24,10 +24,14 @@ SEQ_MOVE_RIGHT_CURSOR2  BYTE    1Bh, '[2C', 0                       ; 커서 오
 SEQ_ASCII_DRAWING_MODE  BYTE    1Bh, '(B', 0                        ; ASCII 모드로 그리기
 SEQ_LINE_DRAWING_MODE   BYTE    1Bh, '(0', 0                        ; DEC Line 모드로 그리기
 
-SEQ_KEY_UP_ARROW        BYTE    1Bh, '[A', 0                        ; 위쪽 방향키
-SEQ_KEY_DOWN_ARROW      BYTE    1Bh, '[B', 0                        ; 아래쪽 방향키
-SEQ_KEY_RIGHT_ARROW     BYTE    1Bh, '[C', 0                        ; 오른쪽 방향키
-SEQ_KEY_LEFT_ARROW      BYTE    1Bh, '[D', 0                        ; 왼쪽 방향키
+SEQ_KEY_UP_ARROW        DWORD   00415B1Bh
+SEQ_KEY_DOWN_ARROW      DWORD   00425B1Bh
+SEQ_KEY_RIGHT_ARROW     DWORD   00435B1Bh
+SEQ_KEY_LEFT_ARROW      DWORD   00445B1Bh
+;SEQ_KEY_UP_ARROW        BYTE    1Bh, '[A', 0                        ; 위쪽 방향키
+;SEQ_KEY_DOWN_ARROW      BYTE    1Bh, '[B', 0                        ; 아래쪽 방향키
+;SEQ_KEY_RIGHT_ARROW     BYTE    1Bh, '[C', 0                        ; 오른쪽 방향키
+;SEQ_KEY_LEFT_ARROW      BYTE    1Bh, '[D', 0                        ; 왼쪽 방향키
 
 SEQ_TOP_LEFT_LINE       BYTE    'l', 0
 SEQ_TOP_RIGHT_LINE      BYTE    'k', 0
@@ -81,7 +85,7 @@ blockShape  BYTE    ?
 blockX      BYTE    ?
 blockY      BYTE    ?
 
-readBuffer  BYTE    4   DUP (0)
+readBuffer  DWORD   ?
 
 ; NEXT
 ; -------------------------------------------------------------------------------------------------------
@@ -103,10 +107,15 @@ end_time    DWORD   ?
 
 main PROC
     ; 초기화
+    push LENGTHOF SEQ_ALTERNATE_BUFFER
+    push OFFSET SEQ_ALTERNATE_BUFFER
+    call PrintConsoleMsg
+
     call InitConsole
     call InitGame
 
     call DrawBoard
+    call FlushConsoleInput
 
     ; 프레임 시작 시간
     call GetTickCount@0
@@ -127,13 +136,18 @@ lb_wait_next_frame:
     sub eax, ecx
 
     cmp eax, FRAME_TIME
-    jge lb_loop
+    jl lb_wait_next_frame
 
+    ; start_time = end_time
     mov eax, end_time
     mov start_time, eax
-    jmp lb_wait_next_frame
+    jmp lb_loop
 
     ; main 함수 종료
+    push LENGTHOF SEQ_MAIN_BUFFER
+    push OFFSET SEQ_MAIN_BUFFER
+    call PrintConsoleMsg
+
     push 0
     call ExitProcess@4
 main ENDP
@@ -170,48 +184,46 @@ InitGame PROC
 InitGame ENDP
 
 InputGame PROC
-    push edi
-    push esi
-
-    push LENGTHOF readBuffer
+    push 4
     push OFFSET readBuffer
     call ReadConsoleMsg
 
-    test eax, eax
-    jz lb_return
+    cmp eax, 0
+    je lb_return
 
     ; 읽은 데이터 불러오기
-    ;mov eax, readBuffer
+    mov eax, readBuffer
     
 check_left_arrow:
     ; 왼쪽 방향키가 눌렸는지 확인
-    ;cmp eax, SEQ_KEY_LEFT_ARROW
-    ;jne check_right_arrow
+    cmp eax, SEQ_KEY_LEFT_ARROW
+    jne check_right_arrow
     push 0
     call ExitProcess@4
 
 check_right_arrow:
     ; 오른쪽 방향키가 눌렸는지 확인
-    ;cmp eax, SEQ_KEY_RIGHT_ARROW
-    ;jne check_down_arrow
+    cmp eax, SEQ_KEY_RIGHT_ARROW
+    jne check_down_arrow
+    push 0
+    call ExitProcess@4
 
 check_down_arrow:
     ; 아래쪽 방향키가 눌렸는지 확인
-    ;cmp eax, SEQ_KEY_DOWN_ARROW
-    ;jne check_up_arrow
+    cmp eax, SEQ_KEY_DOWN_ARROW
+    jne check_up_arrow
+    push 0
+    call ExitProcess@4
 
 check_up_arrow:
     ; 위쪽 방향키가 눌렸는지 확인
-    ;cmp eax, SEQ_KEY_UP_ARROW
-    ;jne check_right_arrow
-
-
+    cmp eax, SEQ_KEY_UP_ARROW
+    jne lb_return
+    push 0
+    call ExitProcess@4
 
 lb_return:
     call FlushConsoleInput
-
-    pop esi
-    pop edi
     ret
 InputGame ENDP
 

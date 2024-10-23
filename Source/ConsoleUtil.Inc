@@ -1,6 +1,7 @@
 EXTRN GetStdHandle@4 : PROC
 EXTRN WriteFile@20 : PROC
 EXTRN ReadFile@20 : PROC
+EXTRN GetNumberOfConsoleInputEvents@8 : PROC
 EXTRN FlushConsoleInputBuffer@4 : PROC
 
 EXTRN GetConsoleMode@8 : PROC
@@ -18,6 +19,9 @@ SEQ_HIDE_CURSOR BYTE 1Bh, '[?25l', 0  ; 커서 숨김 시퀀스
 InitConsole PROC
     LOCAL stdOutMode:DWORD
     LOCAL stdInMode:DWORD
+
+    mov stdOutMode, 0
+    mov stdInMode, 0
 
     ; STD_INPUT 핸들 얻기
     push -10
@@ -49,8 +53,8 @@ InitConsole PROC
     
     ; STD_INPUT VT 모드 켜기
     or stdInMode, 512 ; ENABLE_VIRTUAL_TERMINAL_INPUT
-    or stdInMode, 8   ; ENABLE_WINDOW_INPUT
-    or stdInMode, 16  ; ENABLE_MOUSE_INPUT
+    ;or stdInMode, 8   ; ENABLE_WINDOW_INPUT
+    ;or stdInMode, 16  ; ENABLE_MOUSE_INPUT
     mov eax, 6
     not eax
     and stdInMode, eax
@@ -78,6 +82,20 @@ PrintConsoleMsg PROC msg:PTR BYTE, msgLen:DWORD
 PrintConsoleMsg ENDP
 
 ReadConsoleMsg PROC msg:PTR BYTE, msgLen:DWORD
+    LOCAL numEvents:DWORD
+    
+    mov numEvents, 0
+
+    lea eax, numEvents
+    push eax
+    push STD_IN
+    call GetNumberOfConsoleInputEvents@8
+
+    xor eax, eax
+
+    cmp numEvents, 0
+    je lb_return
+     
     push 0
     push 0
     push msgLen
@@ -85,6 +103,9 @@ ReadConsoleMsg PROC msg:PTR BYTE, msgLen:DWORD
     push STD_IN
     call ReadFile@20
 
+    mov eax, 1
+
+lb_return:
     ret
 ReadConsoleMsg ENDP
 
