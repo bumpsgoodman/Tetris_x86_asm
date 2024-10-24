@@ -6,4 +6,4 @@
 
 -아직 미완성-
 
-<img src = "https://github.com/user-attachments/assets/195266ee-fbb2-4222-bacb-8bf0e98fbb7b" width = "70%" height = "70%">
+<img src = "https://github.com/user-attachments/assets/2e65396d-0e2f-4e6a-8bdd-7b56b9915ff1" width = "70%" height = "70%">
