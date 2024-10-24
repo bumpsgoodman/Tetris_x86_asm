@@ -7,6 +7,7 @@ INCLUDE ConsoleUtil.inc
 INCLUDE Random.inc
 
 EXTRN ExitProcess@4 : PROC
+EXTRN GetAsyncKeyState@4 : PROC
 
 .data
 ; VT 시퀀스
@@ -24,10 +25,10 @@ SEQ_MOVE_RIGHT_CURSOR2  BYTE    1Bh, '[2C', 0                       ; 커서 오
 SEQ_ASCII_DRAWING_MODE  BYTE    1Bh, '(B', 0                        ; ASCII 모드로 그리기
 SEQ_LINE_DRAWING_MODE   BYTE    1Bh, '(0', 0                        ; DEC Line 모드로 그리기
 
-SEQ_KEY_UP_ARROW        DWORD   00415B1Bh
-SEQ_KEY_DOWN_ARROW      DWORD   00425B1Bh
-SEQ_KEY_RIGHT_ARROW     DWORD   00435B1Bh
-SEQ_KEY_LEFT_ARROW      DWORD   00445B1Bh
+;SEQ_KEY_UP_ARROW        DWORD   00415B1Bh
+;SEQ_KEY_DOWN_ARROW      DWORD   00425B1Bh
+;SEQ_KEY_RIGHT_ARROW     DWORD   00435B1Bh
+;SEQ_KEY_LEFT_ARROW      DWORD   00445B1Bh
 ;SEQ_KEY_UP_ARROW        BYTE    1Bh, '[A', 0                        ; 위쪽 방향키
 ;SEQ_KEY_DOWN_ARROW      BYTE    1Bh, '[B', 0                        ; 아래쪽 방향키
 ;SEQ_KEY_RIGHT_ARROW     BYTE    1Bh, '[C', 0                        ; 오른쪽 방향키
@@ -71,6 +72,7 @@ BLOCK_SHAPE_T   EQU 4
 BLOCK_SHAPE_S   EQU 5
 BLOCK_SHAPE_Z   EQU 6
 
+NUM_OFFSETS     EQU 3
 BLOCK_OFFSETS   BYTE    -1, 0, 1, 0, 2, 0           ; I
                 BYTE    1, 0, 0, 1, 1, 1            ; O
                 BYTE    -1, 0, -1, -1, 1, 0         ; L
@@ -85,23 +87,37 @@ blockShape  BYTE    ?
 blockX      BYTE    ?
 blockY      BYTE    ?
 
-readBuffer  DWORD   ?
+BLOCK_DROP_TIME     EQU 1000  ; 1초에 한 칸씩 떨어지게
+start_time  DWORD   ?
+end_time    DWORD   ?
 
 ; NEXT
 ; -------------------------------------------------------------------------------------------------------
 
 NEXT_SECTION_TEXT       BYTE    'NEXT', 0
 
-nextBlockSet0   BYTE    7   DUP (?)
-nextBlockSet1   BYTE    7   DUP (?)
-nextBlockIndex  BYTE    ?
+nextBlockBundle0    BYTE    7   DUP (?)
+nextBlockBundle1    BYTE    7   DUP (?)
+nextBlockIndex      BYTE    ?
 
-; timer
+; key-input
 ; -------------------------------------------------------------------------------------------------------
 
-FRAME_TIME  EQU 33  ; 30 fps
-start_time  DWORD   ?
-end_time    DWORD   ?
+KEY_STATE_UP        EQU     0
+KEY_STATE_DOWN      EQU     1
+KEY_STATE_PRESSED   EQU     2
+
+VK_LEFT             EQU     025h
+VK_RIGHT            EQU     027h
+VK_UP               EQU     026h
+VK_DOWN             EQU     028h
+VK_SPACE            EQU     020h
+
+leftKeyState        DWORD   0
+rightKeyState       DWORD   0
+upKeyState          DWORD   0
+downKeyState        DWORD   0
+spaceKeyState       DWORD   0
 
 .code
 
@@ -114,7 +130,6 @@ main PROC
     call InitConsole
     call InitGame
 
-    call DrawBoard
     call FlushConsoleInput
 
     ; 프레임 시작 시간
@@ -122,27 +137,12 @@ main PROC
     mov start_time, eax
 
 lb_loop:
-    call InputGame
     call UpdateGame
     call DrawGame
 
-lb_wait_next_frame:
-    ; 프레임 끝 시간
-    call GetTickCount@0
-    mov end_time, eax
-
-    ; end_time - start_time
-    mov ecx, start_time
-    sub eax, ecx
-
-    cmp eax, FRAME_TIME
-    jl lb_wait_next_frame
-
-    ; start_time = end_time
-    mov eax, end_time
-    mov start_time, eax
     jmp lb_loop
 
+lb_return:
     ; main 함수 종료
     push LENGTHOF SEQ_MAIN_BUFFER
     push OFFSET SEQ_MAIN_BUFFER
@@ -155,19 +155,19 @@ main ENDP
 InitGame PROC
     push edi
 
-    push OFFSET nextBlockSet0
-    call GenerateBlockSet
+    push OFFSET nextBlockBundle0
+    call GenerateBlocksBundle
 
-    push OFFSET nextBlockSet1
-    call GenerateBlockSet
+    push OFFSET nextBlockBundle1
+    call GenerateBlocksBundle
 
     ; 첫 블럭 불러오기
-    mov al, BYTE PTR [nextBlockSet0]
+    mov al, BYTE PTR [nextBlockBundle0]
     mov blockShape, al
 
     ; 다음 블럭 세팅
-    mov al, BYTE PTR [nextBlockSet1]
-    mov BYTE PTR [nextBlockSet0], al
+    mov al, BYTE PTR [nextBlockBundle1]
+    mov BYTE PTR [nextBlockBundle0], al
 
     mov nextBlockIndex, 1
 
@@ -183,53 +183,137 @@ InitGame PROC
     ret
 InitGame ENDP
 
-InputGame PROC
-    push 4
-    push OFFSET readBuffer
-    call ReadConsoleMsg
+UpdateGame PROC
+    LOCAL nextX:BYTE
+    LOCAL nextY:BYTE
 
-    cmp eax, 0
+    xor eax, eax
+
+    mov al, blockX
+    mov nextX, al
+
+    mov al, blockY
+    mov nextY, al
+
+    ; 잔상 제거하기
+    ; -------------------------------------
+
+    push BOARD_STATE_SPACE
+    mov al, blockShape
+    push eax
+    mov al, blockY
+    push eax
+    mov al, blockX
+    push eax
+    call TryBlockToBoard
+
+    ; -------------------------------------
+
+    ; 키 업데이트
+    ; -------------------------------------
+
+    ; 왼쪽 방향키 업데이트
+    push OFFSET leftKeyState
+    push VK_LEFT
+    call UpdateKey
+
+    ; 오른쪽 방향키 업데이트
+    push OFFSET rightKeyState
+    push VK_RIGHT
+    call UpdateKey
+
+    ; 위쪽 방향키 업데이트
+    push OFFSET upKeyState
+    push VK_UP
+    call UpdateKey
+
+    ; 아래쪽 방향키 업데이트
+    push OFFSET downKeyState
+    push VK_DOWN
+    call UpdateKey
+
+    ; 스페이스바 업데이트
+    push OFFSET spaceKeyState
+    push VK_SPACE
+    call UpdateKey
+
+    ; -------------------------------------
+
+    ; 키 처리
+    ; -------------------------------------
+
+lb_left_key:
+    cmp leftKeyState, KEY_STATE_DOWN
+    jne lb_right_key
+
+    dec nextX
+    jmp lb_update
+
+lb_right_key:
+    cmp rightKeyState, KEY_STATE_DOWN
+    jne lb_up_key
+
+    inc nextX
+    jmp lb_update
+
+lb_up_key:
+    cmp upKeyState, KEY_STATE_DOWN
+    jne lb_down_key
+
+    jmp lb_update
+
+lb_down_key:
+    cmp downKeyState, KEY_STATE_DOWN
+    jne lb_space_key
+
+    inc nextY
+    jmp lb_update
+
+lb_space_key:
+    cmp spaceKeyState, KEY_STATE_DOWN
+    jne lb_update
+
+    ; -------------------------------------
+    
+lb_update:
+    ; 블럭 그리기
+    push BOARD_STATE_BLOCK
+    xor eax, eax
+    mov al, blockShape
+    push eax
+    mov al, nextY
+    push eax
+    mov al, nextX
+    push eax
+    call TryBlockToBoard
+
+    ; 블럭 그리기 실패했으면, 고정
+    ; ----------------------------------------
+
+    test eax, eax
+    jz lb_fixed
+
+    ; blockX = nextX
+    mov al, nextX
+    mov blockX, al
+
+    ; blockY = nextY
+    mov al, nextY
+    mov blockY, al
+
+    jmp lb_return
+
+    ; ----------------------------------------
+
+lb_fixed:
+    cmp leftKeyState, KEY_STATE_DOWN
     je lb_return
 
-    ; 읽은 데이터 불러오기
-    mov eax, readBuffer
-    
-check_left_arrow:
-    ; 왼쪽 방향키가 눌렸는지 확인
-    cmp eax, SEQ_KEY_LEFT_ARROW
-    jne check_right_arrow
-    push 0
-    call ExitProcess@4
+    cmp rightKeyState, KEY_STATE_DOWN
+    je lb_return
 
-check_right_arrow:
-    ; 오른쪽 방향키가 눌렸는지 확인
-    cmp eax, SEQ_KEY_RIGHT_ARROW
-    jne check_down_arrow
-    push 0
-    call ExitProcess@4
-
-check_down_arrow:
-    ; 아래쪽 방향키가 눌렸는지 확인
-    cmp eax, SEQ_KEY_DOWN_ARROW
-    jne check_up_arrow
-    push 0
-    call ExitProcess@4
-
-check_up_arrow:
-    ; 위쪽 방향키가 눌렸는지 확인
-    cmp eax, SEQ_KEY_UP_ARROW
-    jne lb_return
-    push 0
-    call ExitProcess@4
-
-lb_return:
-    call FlushConsoleInput
-    ret
-InputGame ENDP
-
-UpdateGame PROC
-    ; 현재 블록을 보드에 넣기 시도
-    push BOARD_STATE_BLOCK
+    ; 블럭 고정 시키기
+    push BOARD_STATE_FIXED
     xor eax, eax
     mov al, blockShape
     push eax
@@ -238,9 +322,46 @@ UpdateGame PROC
     mov al, blockX
     push eax
     call TryBlockToBoard
-    
+
+    mov blockX, 3
+    mov blockY, 2
+
+lb_return:
     ret
 UpdateGame ENDP
+
+UpdateKey PROC virtualKey: DWORD, pKeyState:PTR DWORD
+    push edi
+
+    mov edi, pKeyState
+
+    push virtualKey
+    call GetAsyncKeyState@4
+
+    ; key가 눌려있는지 확인
+    test eax, eax
+    jz lb_key_up
+
+    ; 이전 상태가 UP인지 확인
+    mov eax, DWORD PTR [edi]
+    cmp eax, KEY_STATE_UP
+    jne lb_key_pressed
+
+lb_key_down:
+    mov DWORD PTR [edi], KEY_STATE_DOWN
+    jmp lb_return
+
+lb_key_pressed:
+    mov DWORD PTR [edi], KEY_STATE_PRESSED
+    jmp lb_return
+
+lb_key_up:
+    mov DWORD PTR [edi], KEY_STATE_UP
+    
+lb_return:
+    pop edi
+    ret
+UpdateKey ENDP
 
 DrawGame PROC
     ; status 섹션 그리기
@@ -293,7 +414,7 @@ DrawGame PROC
     ret
 DrawGame ENDP
 
-GenerateBlockSet PROC pOutBlocks:PTR BYTE
+GenerateBlocksBundle PROC pOutBlocks:PTR BYTE
     push ebx
     push edi
 
@@ -333,7 +454,7 @@ lb_return:
     pop ebx
     pop edi
     ret
-GenerateBlockSet ENDP
+GenerateBlocksBundle ENDP
 
 ; shape에 따른 초기 x, y 위치 결정하는 함수
 InitBlockPos PROC shape:BYTE, pOutX:PTR BYTE, pOutY: PTR BYTE
@@ -362,15 +483,30 @@ InitBlockPos ENDP
 
 ; 반환값 - 성공 시 1, 아니면 0
 TryBlockToBoard PROC x:BYTE, y:BYTE, shape:BYTE, state:BYTE
-    LOCAL actualX:BYTE
-    LOCAL actualY:BYTE
+    LOCAL actualX[NUM_OFFSETS]:BYTE
+    LOCAL actualY[NUM_OFFSETS]:BYTE
 
+    push ebx
     push edi
     push esi
 
-    ; TODO: 범위 검사
-    
-    ; TODO: 실제 보드에 들어갈 수 있는지 검사
+    xor eax, eax
+    xor ebx, ebx
+
+    mov al, y
+    mov bl, x
+
+    ; 유효한 좌표인지 검사
+    push eax
+    push ebx
+    call IsValidPos
+
+    ; 유효하지 않은 좌표라면 반환
+    test eax, eax
+    jz lb_return
+
+    ; 실제 보드에 들어갈 수 있는지 검사
+    ; -----------------------------------
 
     ; BLOCK_OFFSETS 구하기
     lea esi, BLOCK_OFFSETS
@@ -378,33 +514,78 @@ TryBlockToBoard PROC x:BYTE, y:BYTE, shape:BYTE, state:BYTE
     mul shape
     add esi, eax
 
-    mov ecx, 3
-lb_loop:
-    ; actualX 구하기
-    mov al, x
-    mov dl, BYTE PTR [esi]
-    add al, dl
-    mov actualX, al
+    lea ebx, actualX
+    lea edx, actualY
+    mov ecx, NUM_OFFSETS
+lb_test_loop:
+    push ecx
 
     ; actualY 구하기
     mov al, y
-    mov dl, BYTE PTR [esi + 1]
-    add al, dl
-    mov actualY, al
+    mov cl, BYTE PTR [esi + 1]
+    add al, cl
+    mov BYTE PTR [edx], al
+
+    push eax    ; IsValid 매개변수를 위한 actualY push
+
+    ; actualX 구하기
+    mov al, x
+    mov cl, BYTE PTR [esi]
+    add al, cl
+    mov BYTE PTR [ebx], al
+
+    push eax    ; IsVliad 매개변수를 위한 actualX push
+    call IsValidPos
+
+    ; 유효하지 않은 좌표라면 반환
+    test eax, eax
+    jz lb_return
+
+    inc ebx     ; [++actualX]
+    inc edx     ; [++actualY]
+    add esi, 2  ; 다음 오프셋으로 이동
+
+    pop ecx
+    loop lb_test_loop
+
+    ; -----------------------------------
+
+    lea ebx, actualX
+    lea edx, actualY
+    mov ecx, NUM_OFFSETS
+lb_loop:
+    push ebx
+    push ecx
+    push edx
+
+    xor ecx, ecx
+
+    mov cl, BYTE PTR [ebx]  ; actualX 구하기
+    xor ebx, ebx
+
+    mov bl, BYTE PTR [edx]  ; actualY 구하기
+    xor edx, edx
 
     mov dl, state
 
     ; [actualX, actualY] 출력
     lea edi, board
     mov al, BOARD_COLS
-    mul actualY
-    add al, actualX
+    mul bl
+    add al, cl
     add edi, eax
     mov BYTE PTR [edi], dl
 
-    add esi, 2
+    pop edx
+    pop ecx
+    pop ebx
 
+    inc ebx
+    inc edx
     loop lb_loop
+
+    xor edx, edx
+    mov dl, state
 
     ; [x, y] 출력
     lea edi, board
@@ -414,11 +595,60 @@ lb_loop:
     add edi, eax
     mov BYTE PTR [edi], dl
 
+    mov eax, 1
+
 lb_return:
+    pop ebx
     pop edi
     pop esi
     ret
 TryBlockToBoard ENDP
+
+IsValidPos PROC x:BYTE, y:BYTE
+    push edi
+    push ebx
+
+    xor eax, eax
+    xor ebx, ebx
+
+    ; x < 0, 벗어난 범위므로 실패
+    cmp x, 0
+    jl lb_return
+
+    ; x >= BOARD_COLS, 벗어난 범위므로 실패
+    cmp x, BOARD_COLS
+    jge lb_return
+
+    ; y >= BOARD_ROWS, 벗어난 범위므로 실패
+    cmp y, BOARD_ROWS
+    jge lb_return
+
+    ; board[y][x] == BOARD_STATE_FIXED, 벗어난 범위므로 실패
+    ; ----------------------------------------
+
+    ; board[y][x] 구하기
+    lea edi, board
+    mov al, BOARD_COLS
+    mul y
+    add al, x
+    add edi, eax
+
+    xor eax, eax
+
+    ; board[y][x] == BOARD_STATE_FIXED인지 검사
+    mov bl, BYTE PTR [edi]
+    cmp bl, BOARD_STATE_FIXED
+    je lb_return
+
+    ; ----------------------------------------
+
+    mov eax, 1
+
+lb_return:
+    pop ebx
+    pop edi
+    ret
+IsValidPos ENDP
 
 DrawBoard PROC
     LOCAL character[3]:BYTE
@@ -512,6 +742,18 @@ lb_loop0:
         jmp lb_loop1_exit
 
     lb_state_fixed:
+        push 255
+        push 255
+        push 255
+        call SetConsoleBackColor
+
+        push LENGTHOF SEQ_ERASE_CHAR2
+        push OFFSET SEQ_ERASE_CHAR2
+        call PrintConsoleMsg
+
+        push LENGTHOF SEQ_MOVE_RIGHT_CURSOR2
+        push OFFSET SEQ_MOVE_RIGHT_CURSOR2
+        call PrintConsoleMsg
 
         pop ecx
         dec ecx

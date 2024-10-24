@@ -46,21 +46,21 @@ InitConsole PROC
     call SetConsoleMode@8
 
     ; STD_INPUT 콘솔 모드 얻기
-    lea eax, stdInMode
-    push eax
-    push STD_IN
-    call GetConsoleMode@8
+    ;lea eax, stdInMode
+    ;push eax
+    ;push STD_IN
+    ;call GetConsoleMode@8
     
     ; STD_INPUT VT 모드 켜기
-    or stdInMode, 512 ; ENABLE_VIRTUAL_TERMINAL_INPUT
+    ;or stdInMode, 512 ; ENABLE_VIRTUAL_TERMINAL_INPUT
     ;or stdInMode, 8   ; ENABLE_WINDOW_INPUT
     ;or stdInMode, 16  ; ENABLE_MOUSE_INPUT
-    mov eax, 6
-    not eax
-    and stdInMode, eax
-    push stdInMode
-    push STD_IN
-    call SetConsoleMode@8
+    ;mov eax, 6
+    ;not eax
+    ;and stdInMode, eax
+    ;push stdInMode
+    ;push STD_IN
+    ;call SetConsoleMode@8
 
     ; 커서 없애기
     push LENGTHOF SEQ_HIDE_CURSOR
