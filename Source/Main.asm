@@ -87,6 +87,9 @@ blockShape  BYTE    ?
 blockX      BYTE    ?
 blockY      BYTE    ?
 
+shadowX     BYTE    ?
+shadowY     BYTE    ?
+
 BLOCK_DROP_TIME     EQU 1000  ; 1초에 한 칸씩 떨어지게
 start_time  DWORD   ?
 end_time    DWORD   ?
@@ -179,6 +182,13 @@ InitGame PROC
     push eax
     call InitBlockPos
 
+    ; 그림자 초기 위치 세팅
+    xor eax, eax
+    mov al, blockX
+    mov shadowX, al
+    mov al, blockY
+    mov shadowY, al
+
     pop edi
     ret
 InitGame ENDP
@@ -187,25 +197,73 @@ UpdateGame PROC
     LOCAL nextX:BYTE
     LOCAL nextY:BYTE
 
+    push ebx
+
     xor eax, eax
+    xor ebx, ebx
 
     mov al, blockX
     mov nextX, al
 
-    mov al, blockY
-    mov nextY, al
+    mov bl, blockY
+    mov nextY, bl
 
-    ; 잔상 제거하기
+    ; 그림자 그리기
     ; -------------------------------------
 
+    mov al, shadowX
+    mov bl, shadowY
+
+    xor edx, edx
+    mov dl, blockShape
+
+    ; 기존 그림자 잔상 제거
     push BOARD_STATE_SPACE
-    mov al, blockShape
-    push eax
-    mov al, blockY
-    push eax
-    mov al, blockX
-    push eax
+    push edx            ; blockShape
+    push ebx            ; shadowY
+    push eax            ; shadowX
     call TryBlockToBoard
+
+    mov al, blockX
+    mov shadowX, al
+
+    mov bl, blockY
+    mov dl, blockShape
+
+lb_update_shadow:
+    ; 그림자 잔상 제거
+    push BOARD_STATE_SPACE
+    push edx            ; blockShape
+    push ebx            ; shadowY
+    push eax            ; shadowX
+    call TryBlockToBoard
+
+    inc bl
+    mov al, blockX
+    mov dl, blockShape
+
+    ; 그림자 그려보기
+    push BOARD_STATE_SHADOW
+    push edx            ; blockShape
+    push ebx            ; shadowY
+    push eax            ; shadowX
+    call TryBlockToBoard
+
+    test eax, eax
+    mov al, blockX
+    mov dl, blockShape
+    jnz lb_update_shadow
+
+    dec bl
+
+    ; 최종적으로 그림자 그리기
+    push BOARD_STATE_SHADOW
+    push edx            ; blockShape
+    push ebx            ; shadowY
+    push eax            ; shadowX
+    call TryBlockToBoard
+
+    mov shadowY, bl
 
     ; -------------------------------------
 
@@ -327,6 +385,7 @@ lb_fixed:
     mov blockY, 2
 
 lb_return:
+    pop ebx
     ret
 UpdateGame ENDP
 
@@ -394,10 +453,10 @@ DrawGame PROC
     ; next 섹션 그리기
     push LENGTHOF NEXT_SECTION_TEXT
     push OFFSET NEXT_SECTION_TEXT
-    push 24
-    push 65
-    push 1
-    push 48
+    push 24 ; bottomRightY
+    push 65 ; bottomRightX
+    push 1  ; topLeftY
+    push 48 ; topLeftX
     call DrawSection
 
     push 50
@@ -413,6 +472,12 @@ DrawGame PROC
 
     ret
 DrawGame ENDP
+
+DrawNextBlocks  PROC
+    
+
+    ret
+DrawNextBlocks ENDP
 
 GenerateBlocksBundle PROC pOutBlocks:PTR BYTE
     push ebx
@@ -539,7 +604,7 @@ lb_test_loop:
 
     ; 유효하지 않은 좌표라면 반환
     test eax, eax
-    jz lb_return
+    jz lb_pop_ecx
 
     inc ebx     ; [++actualX]
     inc edx     ; [++actualY]
@@ -597,11 +662,17 @@ lb_loop:
 
     mov eax, 1
 
+    jmp lb_return
+
+lb_pop_ecx:
+    pop ecx
+
 lb_return:
-    pop ebx
-    pop edi
     pop esi
+    pop edi
+    pop ebx
     ret
+
 TryBlockToBoard ENDP
 
 IsValidPos PROC x:BYTE, y:BYTE
@@ -696,6 +767,9 @@ lb_loop0:
         cmp al, BOARD_STATE_FIXED
         je lb_state_fixed
 
+        cmp al, BOARD_STATE_SHADOW
+        je lb_state_shadow
+
         ; state shadow
 
     lb_state_space:
@@ -762,6 +836,18 @@ lb_loop0:
         jmp lb_loop1_exit
 
     lb_state_shadow:
+        push 0
+        push 255
+        push 255
+        call SetConsoleBackColor
+
+        push LENGTHOF SEQ_ERASE_CHAR2
+        push OFFSET SEQ_ERASE_CHAR2
+        call PrintConsoleMsg
+
+        push LENGTHOF SEQ_MOVE_RIGHT_CURSOR2
+        push OFFSET SEQ_MOVE_RIGHT_CURSOR2
+        call PrintConsoleMsg
 
         pop ecx
         dec ecx
@@ -777,9 +863,9 @@ lb_loop0:
     jmp lb_return
 
 lb_return:
-    pop ebx
     pop edi
     pop esi
+    pop ebx
 
     ret
 DrawBoard ENDP
@@ -930,9 +1016,9 @@ DrawSection PROC topLeftX:DWORD, topLeftY:DWORD, bottomRightX:DWORD, bottomRight
     call PrintConsoleMsg
 
     ; 기본 배경 색상으로 되돌리기
-    push 0
-    push 0
-    push 0
+    push 12
+    push 12
+    push 12
     call SetConsoleBackColor
 
     ; 기본 텍스트 색상으로 되돌리기
@@ -941,8 +1027,8 @@ DrawSection PROC topLeftX:DWORD, topLeftY:DWORD, bottomRightX:DWORD, bottomRight
     push 255
     call SetConsoleTextColor
 
-    pop edi
     pop ebx
+    pop edi
     
     ret
 DrawSection ENDP
