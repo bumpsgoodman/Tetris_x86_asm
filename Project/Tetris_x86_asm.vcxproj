@@ -150,9 +150,9 @@
   <ItemGroup>
     <None Include="..\Source\AsciiUtil.inc" />
     <None Include="..\Source\ConsoleUtil.Inc" />
+    <None Include="..\Source\Game.inc" />
+    <None Include="..\Source\GameDraw.inc" />
     <None Include="..\Source\Random.inc" />
-    <None Include="Game.inc" />
-    <None Include="GameDraw.inc" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\Source\Main.asm" />
