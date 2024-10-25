@@ -1,73 +1,73 @@
 .code
 
-;--------------------------------------
-; num - 문자로 바꿀 숫자
-; pOutBytes - 문자로 변환된 배열
-; 반환값 - 변환된 문자 개수
+;=========================================
+; 함수 이름: IntegerToAscii
+; 설명: 이 함수는 정수를 아스키 문자로 변환해줍니다.
+; 매개변수:
+;   - 첫 번째 매개변수(num): 변환할 정수 숫자 (ebp + 8)
+;   - 두 번째 매개변수(pOutBytes): 아스키 문자로 변환된 숫자를 저장할 포인터 (ebp + 12)
+; 반환값: 아스키 문자로 변환된 숫자 개수
 ;
+; num에 범위는 다음과 같습니다.
 ; 0 <= num < 1000
-;--------------------------------------
-IntToAscii PROC num:DWORD, pOutBytes:PTR BYTE
-    ; eax - num
-    ; ecx - 변환된 자릿수
+;=========================================
+IntegerToAscii:
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    push ebx
+    push edi
 
-    push edi            ; edi 백업
-    push ebx            ; ebx 백업
+    mov ebx, [ebp + 8]  ; ebx = num
+    mov edi, [ebp + 12] ; edi = pOutBytes
 
-    mov edi, pOutBytes
+    ; num == 0인 경우,
+    ; '0' 저장 후, 종료
+    test ebx, ebx
+    jnz lb_test_digit3
 
-    mov eax, num
-    mov ebx, 10
+    mov al, '0'
+    mov [edi], al  ; pOutBytes[0] = '0'
 
-    ; num이 0인 경우 '0' 출력
-    test eax, eax
-    jnz lb_hundreds_digit
+    ; 리턴
+    xor eax, eax
+    jmp lb_integer_to_ascii_return
 
-    mov BYTE PTR [edi], '0'
-    mov ecx, 1
-    jmp lb_return
+lb_test_digit3:
+    mov edx, 3  ; 먼저, 세 자릿수로 가정
 
-lb_hundreds_digit:
-    ; 100의 자릿수인지
-    cmp eax, 100
-    jl lb_tens_digit
-    mov ecx, 3
-    add edi, 2
+    ; 세 자릿수인지 판단
+    cmp ebx, 100
+    jge lb_convert
 
-    jmp lb_loop
+    dec edx ; 자릿수 감소, 두 자릿수
 
-lb_tens_digit:
-    ; 10의 자릿수인지
-    cmp eax, 10
-    jl lb_unit_digit
-    mov ecx, 2
+    ; 두 자릿수인지 판단
+    cmp ebx, 10
+    jge lb_convert
 
-    inc edi
+    dec edx ; 자릿수 감소, 한 자릿수
 
-    jmp lb_loop
+    add edi, edx    ; 뒷자리부터 채워 나가야 하기 때문에, 자릿수 - 1만큼 포인터 증가
+    dec edi
+    mov ecx, edx    ; 루프 카운트 설정
+    mov ax, bx      ; 초기값(num)을 ax에 저장
+    mov bl, 10      ; 10으로 나눌 것임
+lb_convert:
+    div bl
 
-lb_unit_digit:
-    mov ecx, 1
-
-lb_loop:
-    ; 몫이 0이면 종료
-    test eax, eax
-    je lb_return
-
-    xor edx, edx
-    div ebx
-
-    ; 숫자 -> 문자로 변환 후 저장
-    add dl, '0'
-    mov BYTE PTR [edi], dl
+    add ah, '0'     ; 숫자 -> 아스키 문자
+    mov [edi], ah   ; 아스키 문자 저장
     dec edi
 
-    jmp lb_loop
+    loop lb_convert
 
-lb_return:
-    pop ebx
+    mov eax, edx
+
+lb_integer_to_ascii_return:
+    ; 에필로그
     pop edi
-    mov eax, ecx
-    ret
-    
-IntToAscii ENDP
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret 8

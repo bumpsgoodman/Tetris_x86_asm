@@ -1,321 +1,193 @@
+INCLUDE AsciiUtil.inc
+
 EXTRN GetStdHandle@4 : PROC
-EXTRN WriteFile@20 : PROC
-EXTRN ReadFile@20 : PROC
-EXTRN GetNumberOfConsoleInputEvents@8 : PROC
-EXTRN FlushConsoleInputBuffer@4 : PROC
+EXTRN WriteConsoleA@20 : PROC
+EXTRN ReadConsoleA@20 : PROC
 
 EXTRN GetConsoleMode@8 : PROC
 EXTRN SetConsoleMode@8 : PROC
 
-INCLUDE AsciiUtil.inc
-
 .data
-STD_OUT DWORD ?
-STD_IN DWORD ?
 
-SEQ_HIDE_CURSOR BYTE 1Bh, '[?25l', 0  ; 커서 숨김 시퀀스
+STD_INPUT_HANDLE    DD ?    ; 표준 입력 핸들
+STD_OUTPUT_HANDLE   DD ?    ; 표준 출력 핸들
+
+;=========================================
+; Console Virtual Terminal Sequences
+
+SEQ_HIDE_CURSOR         DB  01Bh, '[?25l', 0  ; 커서 숨김 시퀀스
+SEQ_HIDE_CURSOR_LENGTH  DB  6
+
+SEQ_ALTERNATE_BUFFER    DB  1Bh, '[1049h', 0                    ; 새 스크린 버퍼
+SEQ_MAIN_BUFFER         DB  1Bh, '[1049l', 0                    ; 메인 스크린 버퍼
+
+SEQ_CLEAR_SCREEN        DB  1Bh, '[2J', 0                       ; 화면 지우기
+SEQ_ERASE_CHAR1         DB  1Bh, '[1X', 0                       ; 한 칸 지우기
+SEQ_ERASE_CHAR2         DB  1Bh, '[2X', 0                       ; 두 칸 지우기
+SEQ_MOVE_RIGHT_CURSOR1  DB  1Bh, '[1C', 0                       ; 커서 오른쪽으로 한 칸 이동
+SEQ_MOVE_RIGHT_CURSOR2  DB  1Bh, '[2C', 0                       ; 커서 오른쪽으로 두 칸 이동
+
+SEQ_ASCII_DRAWING_MODE  DB  1Bh, '(B', 0                        ; ASCII 모드로 그리기
+SEQ_LINE_DRAWING_MODE   DB  1Bh, '(0', 0                        ; DEC Line 모드로 그리기
+
+;SEQ_KEY_UP_ARROW        DD   00415B1Bh
+;SEQ_KEY_DOWN_ARROW      DD   00425B1Bh
+;SEQ_KEY_RIGHT_ARROW     DD   00435B1Bh
+;SEQ_KEY_LEFT_ARROW      DD   00445B1Bh
+;SEQ_KEY_UP_ARROW        DB    1Bh, '[A', 0                        ; 위쪽 방향키
+;SEQ_KEY_DOWN_ARROW      DB    1Bh, '[B', 0                        ; 아래쪽 방향키
+;SEQ_KEY_RIGHT_ARROW     DB    1Bh, '[C', 0                        ; 오른쪽 방향키
+;SEQ_KEY_LEFT_ARROW      DB    1Bh, '[D', 0                        ; 왼쪽 방향키
+
+SEQ_TOP_LEFT_LINE       DB    'l', 0
+SEQ_TOP_RIGHT_LINE      DB    'k', 0
+SEQ_BOTTOM_LEFT_LINE    DB    'm', 0
+SEQ_BOTTOM_RIGHT_LINE   DB    'j', 0
+SEQ_VERTICAL_LINE       DB    'x', 0
+SEQ_HORIZONTAL_LINE     DB    'q', 0
+
+;=========================================
 
 .code
-InitConsole PROC
-    LOCAL stdOutMode:DWORD
-    LOCAL stdInMode:DWORD
 
-    mov stdOutMode, 0
-    mov stdInMode, 0
+;=========================================
+; 함수 이름: InitConsole
+; 설명: 이 함수는 콘솔 입출력을 위한 초기화를 진행합니다.
+;       1. 커서 숨기기
+; 매개변수: 없음
+; 반환값: 없음
+;=========================================
+InitConsole:
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    sub esp, 4
+    push ebx
 
-    ; STD_INPUT 핸들 얻기
-    push -10
+    push -10                    ; STD_INPUT_HANDLE
     call GetStdHandle@4
-    mov STD_IN, eax
+    mov STD_INPUT_HANDLE, eax   ; STD_INPUT 저장
 
-    ; STD_OUTPUT 핸들 얻기
-    push -11
+    push -11                    ; STD_OUTPUT_HANDLE
     call GetStdHandle@4
-    mov STD_OUT, eax
+    mov STD_OUTPUT_HANDLE, eax  ; STD_OUTPUT 저장
 
     ; STD_OUTPUT 콘솔 모드 얻기
-    lea eax, stdOutMode
-    push eax
-    push STD_OUT
+    lea eax, [ebp - 4]          ; eax = STD_OUTPUT_MODE가 저장될 포인터
+    push eax                    ; lpMode, 현재 지정된 모드가 저장될 포인터
+    push STD_OUTPUT_HANDLE      ; hConsoleHandle, 콘솔 핸들
     call GetConsoleMode@8
 
     ; STD_OUTPUT VT 모드 켜기
-    or stdOutMode, 4   ; ENABLE_VIRTUAL_TERMINAL_PROCESSING
-    push stdOutMode
-    push STD_OUT
+    mov eax, [ebp - 4]          ; eax = 현재 지정된 모드
+    or eax, 4                   ; ENABLE_VIRTUAL_TERMINAL_PROCESSING
+    push eax                    ; dwMode, 지정할 모드
+    push STD_OUTPUT_HANDLE      ; hConsoleHandle, 콘솔 핸들
     call SetConsoleMode@8
 
-    ; STD_INPUT 콘솔 모드 얻기
-    ;lea eax, stdInMode
-    ;push eax
-    ;push STD_IN
-    ;call GetConsoleMode@8
-    
-    ; STD_INPUT VT 모드 켜기
-    ;or stdInMode, 512 ; ENABLE_VIRTUAL_TERMINAL_INPUT
-    ;or stdInMode, 8   ; ENABLE_WINDOW_INPUT
-    ;or stdInMode, 16  ; ENABLE_MOUSE_INPUT
-    ;mov eax, 6
-    ;not eax
-    ;and stdInMode, eax
-    ;push stdInMode
-    ;push STD_IN
-    ;call SetConsoleMode@8
+    ; 커서 숨기기
+    movzx eax, SEQ_HIDE_CURSOR_LENGTH   ; eax = 커서 숨기기 시퀀스 길이 저장
+    lea ebx, SEQ_HIDE_CURSOR            ; ebx = 커서 숨기기 시퀀스 버퍼 포인터
+    push eax                            ; messageLength
+    push ebx                            ; pMessage
+    call Print
 
-    ; 커서 없애기
-    push LENGTHOF SEQ_HIDE_CURSOR
-    push OFFSET SEQ_HIDE_CURSOR
-    call PrintConsoleMsg
-
-    ret
-InitConsole ENDP
-
-PrintConsoleMsg PROC msg:PTR BYTE, msgLen:DWORD
-    push 0   
-    push 0
-    push msgLen
-    push msg
-    push STD_OUT
-    call WriteFile@20
-
-    ret
-PrintConsoleMsg ENDP
-
-ReadConsoleMsg PROC msg:PTR BYTE, msgLen:DWORD
-    LOCAL numEvents:DWORD
-    
-    mov numEvents, 0
-
-    lea eax, numEvents
-    push eax
-    push STD_IN
-    call GetNumberOfConsoleInputEvents@8
-
-    xor eax, eax
-
-    cmp numEvents, 0
-    je lb_return
-     
-    push 0
-    push 0
-    push msgLen
-    push msg
-    push STD_IN
-    call ReadFile@20
-
-    mov eax, 1
-
-lb_return:
-    ret
-ReadConsoleMsg ENDP
-
-FlushConsoleInput PROC
-    push STD_IN
-    call FlushConsoleInputBuffer@4
-    
-    ret
-FlushConsoleInput ENDP
-
-; 지정된 [r/g/b]로 텍스트 색상 변경
-; r - 0 ~ 255
-; g - 0 ~ 255
-; b - 0 ~ 255
-; 리턴값 - 없음
-SetConsoleTextColor PROC r:BYTE, g:BYTE, b:BYTE
-    ; 텍스트 색상 지정 시퀀스
-    ; ESC[38;2;r;g;bm
-    ; 기본 11글자 + rgb
-    LOCAL sequence[21]:BYTE
-    LOCAL sequenceLen:DWORD
-
-    push edi
-    push ebx
-
-    mov sequenceLen, 11
-
-    lea edi, sequence
-    mov BYTE PTR [edi], 1Bh
-    mov BYTE PTR [edi + 1], '['
-    mov BYTE PTR [edi + 2], '3'
-    mov BYTE PTR [edi + 3], '8'
-    mov BYTE PTR [edi + 4], ';'
-    mov BYTE PTR [edi + 5], '2'
-    mov BYTE PTR [edi + 6], ';'
-    add edi, 7
-
-    ; red 문자로 변경
-    xor ebx, ebx
-    mov bl, r
-    push edi
-    push ebx
-    call IntToAscii
-    add edi, eax
-    add sequenceLen, eax
-
-    mov BYTE PTR [edi], ';'
-    inc edi
-
-    ; green 문자로 변경
-    xor ebx, ebx
-    mov bl, g
-    push edi
-    push ebx
-    call IntToAscii
-    add edi, eax
-    add sequenceLen, eax
-
-    mov BYTE PTR [edi], ';'
-    inc edi
-
-    ; blue 문자로 변경
-    xor ebx, ebx
-    mov bl, b
-    push edi
-    push ebx
-    call IntToAscii
-    add edi, eax
-    add sequenceLen, eax
-
-    mov BYTE PTR [edi], 'm'
-    mov BYTE PTR [edi + 1], 0
-
-    lea edi, sequence
-    push sequenceLen
-    push edi
-    call PrintConsoleMsg
-
+lb_init_console_return:
+    ; 에필로그
     pop ebx
-    pop edi
-
+    mov esp, ebp
+    pop ebp
     ret
-SetConsoleTextColor ENDP
 
-; 지정된 [r/g/b]로 배경 색상 변경
-; r - 0 ~ 255
-; g - 0 ~ 255
-; b - 0 ~ 255
-; 리턴값 - 없음
-SetConsoleBackColor PROC r:BYTE, g:BYTE, b:BYTE
-    ; 백그라운드 색상 지정 시퀀스
-    ; ESC[48;2;r;g;bm
-    LOCAL sequence[21]:BYTE
-    LOCAL sequenceLen:DWORD
+;=========================================
+; 함수 이름: Print
+; 설명: 이 함수는 메시지를 출력합니다.
+; 매개변수:
+;   - 첫 번째 매개변수(pMessage): 메시지가 저장된 포인터 (ebp + 8)
+;   - 두 번째 매개변수(messageLength): 메시지 길이 (ebp + 12)
+; 반환값: 없음
+;=========================================
+Print:
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
 
-    push edi
+    push 0                  ; lpReserved, NULL이어야 함
+    push 0                  ; lpNumberOfCharsWritten, 실제로 쓰인 문자 수
+    push [ebp + 12]         ; nNumberOfCharsToWrite, 쓸 문자 수
+    push [ebp + 8]          ; lpBuffer, 쓸 문자 버퍼
+    push STD_OUTPUT_HANDLE  ; hConsoleOutput, 콘솔 화면 핸들
+    call WriteConsoleA@20
+
+lb_print_return:
+    ; 에필로그
+    mov esp, ebp
+    pop ebp
+    ret 8
+
+;=========================================
+; 함수 이름: GotoXY
+; 설명: 이 함수는 지정된 [x, y]로 커서 위치를 옮깁니다.
+; 매개변수:
+;   - 첫 번째 매개변수(x): x 좌표 (ebp + 8)
+;   - 두 번째 매개변수(y): y 좌표 (ebp + 12)
+; 반환값: 없음
+;=========================================
+GotoXY:
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    sub esp, 12
     push ebx
-
-    mov sequenceLen, 11
-
-    lea edi, sequence
-    mov BYTE PTR [edi], 1Bh
-    mov BYTE PTR [edi + 1], '['
-    mov BYTE PTR [edi + 2], '4'
-    mov BYTE PTR [edi + 3], '8'
-    mov BYTE PTR [edi + 4], ';'
-    mov BYTE PTR [edi + 5], '2'
-    mov BYTE PTR [edi + 6], ';'
-    add edi, 7
-
-    ; red 문자로 변경
-    xor ebx, ebx
-    mov bl, r
     push edi
-    push ebx
-    call IntToAscii
-    add edi, eax
-    add sequenceLen, eax
 
-    mov BYTE PTR [edi], ';'
-    inc edi
-
-    ; green 문자로 변경
-    xor ebx, ebx
-    mov bl, g
-    push edi
-    push ebx
-    call IntToAscii
-    add edi, eax
-    add sequenceLen, eax
-
-    mov BYTE PTR [edi], ';'
-    inc edi
-
-    ; blue 문자로 변경
-    xor ebx, ebx
-    mov bl, b
-    push edi
-    push ebx
-    call IntToAscii
-    add edi, eax
-    add sequenceLen, eax
-
-    mov BYTE PTR [edi], 'm'
-    mov BYTE PTR [edi + 1], 0
-
-    lea edi, sequence
-    push sequenceLen
-    push edi
-    call PrintConsoleMsg
-
-    pop ebx
-    pop edi
-
-    ret
-SetConsoleBackColor ENDP
-
-; [x, y]로 커서 위치 변경
-; 반환값 - 없음
-; 0 < x < 100
-; 0 < y < 100
-SetConsoleXY PROC x:DWORD, y:DWORD
-    LOCAL sequence[9]:BYTE
-    LOCAL sequenceLen:DWORD
-    ; 커서 위치 지정 시퀀스
     ; ESC[y;xH
+    ; 커서 위치 지정 시퀀스
+    ; [ebp - 12] = sequence[9]
 
+    lea edi, [ebp - 12] ; edi = &sequence[0]
+
+    mov al, 1Bh         ; ESC
+    mov [edi], al
+    mov al, '['
+    mov [edi + 1], al
+    add edi, 2
+
+    ; y값 ascii로 변환
+    mov al, [ebp + 12]
+    push edi
+    push eax
+    call IntegerToAscii
+    add edi, eax
+
+    mov al, ';'
+    mov [edi], al
+    inc edi
+
+    ; x값 ascii로 변환
+    mov al, [ebp + 8]
+    push edi
+    push eax
+    call IntegerToAscii
+    add edi, eax
+
+    mov al, 'H'
+    mov [edi], al
+    inc edi
+
+    mov al, 0
+    mov [edi], al
+
+    lea ebx, [ebp - 12]
+    sub edi, ebx        ; sequenceLength
     push edi
     push ebx
+    call Print
 
-    mov ebx, x
-    mov ecx, y
-
-    mov sequenceLen, 5
-
-    lea edi, sequence
-    mov BYTE PTR [edi], 1Bh
-    inc edi
-    mov BYTE PTR [edi], '['
-    inc edi
-
-    ; y 좌표 문자로 변경
-    push edi
-    push ecx
-    call IntToAscii
-    add edi, eax
-    add sequenceLen, eax
-
-    mov BYTE PTR [edi], ';'
-    inc edi
-
-    ; x 좌표 문자로 변경
-    push edi
-    push ebx
-    call IntToAscii
-    add edi, eax
-    add sequenceLen, eax
-
-    mov BYTE PTR [edi], 'H'
-    inc edi
-    mov BYTE PTR [edi], 0
-
-    ; 커서 이동
-    lea edi, sequence
-    push sequenceLen
-    push edi
-    call PrintConsoleMsg
-
-    pop ebx
+lb_gotoxy_return:
+    ; 에필로그
     pop edi
-
-    ret
-SetConsoleXY ENDP
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret 8
