@@ -1,3 +1,7 @@
+.data
+
+
+
 INCLUDE GameDraw.inc
 
 .code
@@ -13,7 +17,7 @@ InitGame:
     push ebp
     mov ebp, esp
 
-lb_return:
+lb_init_game_return:
     ; 에필로그
     mov esp, ebp
     pop ebp
@@ -47,9 +51,37 @@ DrawGame:
     push ebp
     mov ebp, esp
 
+    ; 텍스트 색상 지정
+    push 0      ; blue
+    push 255    ; green
+    push 255    ; red
+    call SetTextColor
+
+    ; 텍스트 배경 색상 지정
+    push 128
+    push 128
+    push 0
+    call SetBackColor
+
+    ; 섹션 그리기
     call DrawStatusSection
+    call DrawHelpSection
+    call DrawGameSection
+    call DrawNextSection
 
 lb_draw_game_return:
+    ; 기본 텍스트 색상으로 변경
+    push 255    ; blue
+    push 255    ; green
+    push 255    ; red
+    call SetTextColor
+
+    ; 기본 텍스트 배경 색상으로 변경
+    push 12    ; blue
+    push 12    ; green
+    push 12    ; red
+    call SetBackColor
+
     ; 에필로그
     mov esp, ebp
     pop ebp
@@ -65,7 +97,6 @@ IsRunningGame:
     ; 프롤로그
     push ebp
     mov ebp, esp
-
 
 lb_is_running_game_return:
     xor eax, eax ; 임시적으로 0 반환

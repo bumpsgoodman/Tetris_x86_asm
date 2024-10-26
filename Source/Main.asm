@@ -1,5 +1,6 @@
 ;=========================================
 ; 코딩 컨벤션
+; 0. 호출 규약은 stdcall + edx 레지스터 보존입니다.
 ; 1. 자료형은 UPPER_CASE입니다.
 ; 2. main 함수를 제외한 모든 public 함수는 PascalCase입니다.
 ; 3. main 함수를 제외한 모든 private 함수는 cameCase입니다.
@@ -20,7 +21,7 @@ INCLUDE Game.inc
 EXTRN ExitProcess@4 : PROC
 
 .data
-hello DB 'hello', 0
+hello DB 'hello', 0     ; 테스트용
 
 .code
 
@@ -43,7 +44,7 @@ lb_game_loop:
     inc ebx
     call IsRunningGame  ; 게임 오버인지 확인하기
     test eax, eax
-    jnz lb_return
+    jnz lb_main_return       ; 테스트용으로 false 반환 시 루프 도는 형태로 진행
 
     call UpdateGame     ; 게임 로직 업데이트
     call DrawGame       ; 게임 그리기

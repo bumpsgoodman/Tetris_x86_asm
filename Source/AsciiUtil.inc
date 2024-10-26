@@ -38,21 +38,23 @@ lb_test_digit3:
 
     ; 세 자릿수인지 판단
     cmp ebx, 100
-    jge lb_convert
+    jge lb_init_convert
 
     dec edx ; 자릿수 감소, 두 자릿수
 
     ; 두 자릿수인지 판단
     cmp ebx, 10
-    jge lb_convert
+    jge lb_init_convert
 
     dec edx ; 자릿수 감소, 한 자릿수
 
+lb_init_convert:
     add edi, edx    ; 뒷자리부터 채워 나가야 하기 때문에, 자릿수 - 1만큼 포인터 증가
     dec edi
     mov ecx, edx    ; 루프 카운트 설정
     mov ax, bx      ; 초기값(num)을 ax에 저장
     mov bl, 10      ; 10으로 나눌 것임
+
 lb_convert:
     div bl
 
@@ -60,6 +62,7 @@ lb_convert:
     mov [edi], ah   ; 아스키 문자 저장
     dec edi
 
+    xor ah, ah      ; 나머지가 ah에 저장되기 때문에 다음 연산에 문제가 생길 수 있어, ah를 0으로 초기화
     loop lb_convert
 
     mov eax, edx
