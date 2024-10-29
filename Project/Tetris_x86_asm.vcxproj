@@ -156,6 +156,7 @@
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\Source\Main.asm" />
+    <MASM Include="GameInit.inc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
