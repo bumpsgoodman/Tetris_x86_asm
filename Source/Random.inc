@@ -37,7 +37,8 @@ GetRandomRange:
 
     ; eax = eax % range
     xor edx, edx
-    div [ebp + 8]
+    mov ebx, [ebp + 8]
+    div ebx
     mov eax, edx
 
 lb_get_random_ragne_return:
@@ -46,4 +47,4 @@ lb_get_random_ragne_return:
     pop ebx
     mov esp, ebp
     pop ebp
-    ret
+    ret 4
