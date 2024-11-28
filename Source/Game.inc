@@ -29,18 +29,19 @@ BLOCK_OFFSETS   DB    -1, 0,  1,  0,  2,  0     ; I
                 DB    -1, 0,  0, -1,  1, -1     ; S
                 DB     1, 0,  0, -1, -1, -1     ; Z
 
-board           DB BOARD_ROWS * BOARD_COLS DUP (BOARD_STATE_SPACE)
+shapeFlag           DB 0 ; getNextBlockInBundle 전용 변수
 
-blocksBundle0   DB 7 DUP (?)
-blocksBundle1   DB 7 DUP (?)
-pBlocksBundle   DD ?
+board               DB BOARD_ROWS * BOARD_COLS DUP (BOARD_STATE_SPACE)
 
-blockShape      DB ?
-blockX          DB ?
-blockY          DB ?
+blockBundle         DB 7 DUP (?)
+blockBundleIndex    DB 0
 
-shadowX         DB ?
-shadowY         DB ?
+block               DB ?
+blockX              DB ?
+blockY              DB ?
+
+shadowX             DB ?
+shadowY             DB ?
 
 .code
 
@@ -54,33 +55,34 @@ InitGame:
     ; 프롤로그
     push ebp
     mov ebp, esp
+    push edi
 
-    ; 0번 블럭 번들 생성
-    lea eax, blocksBundle0
-    push eax
-    call makeBlocksBundle
+    ; 블럭 번들 생성
+    lea edi, blockBundle
+    mov ecx, NUM_BLOCK_SHAPES
+lb_make_block_bundle_loop:
+    push ecx    ; ecx 백업
+    call getNextBlockInBundle   ; 번들의 다음 블럭 얻어오기
+    pop ecx
 
-    ; 1번 블럭 번들 생성
-    lea eax, blocksBundle1
-    push eax
-    call makeBlocksBundle
+    ; 블럭 번들에 블럭 저장
+    mov [edi], al
+    inc edi
 
-    ; 현재 블럭 번들 포인터 초기화
-    lea eax, blocksBundle0
-    mov [pBlocksBundle], eax
+    loop lb_make_block_bundle_loop
 
-    ; 블럭 초기 shape 설정
-    mov eax, [pBlocksBundle]
-    mov al, [eax]
-    mov [blockShape], al
-    inc pBlocksBundle
+    ; 블럭 초기 설정
+    call getNextBlock
+    mov [block], al
 
     ; TODO
     ; 1. 블럭 그리기
     ; 2. 다음 블럭 그리기
+    ; 3. 블럭 초기 위치 설정
 
 lb_init_game_return:
     ; 에필로그
+    pop edi
     mov esp, ebp
     pop ebp
     ret
@@ -131,6 +133,12 @@ DrawGame:
     call DrawGameSection
     call DrawNextSection
 
+    ; TODO: 블럭 그리기
+    ; 블럭 그리기
+
+    ; TODO: 다음 블럭 그리기
+    ; 다음 블럭 그리기
+
 lb_draw_game_return:
     ; 기본 텍스트 색상으로 변경
     push 255    ; blue
@@ -169,13 +177,12 @@ lb_is_running_game_return:
     ret
 
 ;=========================================
-; 함수 이름: makeBlocksBundle
-; 설명: 이 함수는 블럭 번들을 생성해주는 함수입니다.
-; 매개변수:
-;   - pBlocksBundle: 블럭 번들 (ebp + 8)
-; 반환값: 없음
+; 함수 이름: getNextBlockInBundle
+; 설명: 이 함수는 다음 번들의 블럭 모양이 무엇인지 반환해주는 함수입니다.
+; 매개변수: 없음
+; 반환값: 다음 번들의 블럭 모양 (8비트)
 ;=========================================
-makeBlocksBundle:
+getNextBlockInBundle:
     ; 프롤로그
     push ebp
     mov ebp, esp
@@ -183,13 +190,9 @@ makeBlocksBundle:
     push edx
     push edi
 
-    mov edi, [ebp + 8]  ; edi = pBlocksBundle
-    xor edx, edx        ; edx = shapeFlag
-lb_make_blocks_loop:
-    ; edx가 2^7 - 1 과 같은 경우, 중복 없이 7개 다 만들어짐
-    cmp edx, 07Fh
-    je lb_make_blocks_bundle_return
-
+    lea edi, shapeFlag  ; edi = &shapeFlag
+    mov edx, [edi]      ; edx = shapeFlag
+lb_shape_flag_loop:
     ; shape 랜덤으로 결정하기
     push NUM_BLOCK_SHAPES
     call GetRandomRange
@@ -203,20 +206,67 @@ lb_make_blocks_loop:
     ; => 이미 해당 shape이 존재함
     mov ecx, ebx
     and ecx, edx    ; (1 << shape) & shapeFlag
-    jnz lb_make_blocks_loop
+    jnz lb_shape_flag_loop
 
-    mov [edi], eax  ; pBlocksBundle[i++] = shape
-    inc edi
+    or edx, ebx     ; edx = shapeFlag | shape
+    cmp edx, 07Fh   ; shapeFlag == 0b0111 1111 인지 검사
+    jne lb_get_next_block_in_bundle_return
 
-    or edx, ebx     ; shapeFlag = shapeFlag | shape
+    xor edx, edx    ; shapeFlag가 모두 활성화 되면 0으로 초기화
 
-    jmp lb_make_blocks_loop
+lb_get_next_block_in_bundle_return:
+    mov [edi], edx  ; shapeFlag = shapeFlag | shape
 
-lb_make_blocks_bundle_return:
     ; 에필로그
     pop edi
     pop edx
     pop ebx
     mov esp, ebp
     pop ebp
-    ret 4
+    ret
+
+;=========================================
+; 함수 이름: getNextBlock
+; 설명: 이 함수는 다음 블럭 모양이 무엇인지 반환해주는 함수입니다.
+; 매개변수: 없음
+; 반환값: 다음 블럭 모양 (8비트)
+;=========================================
+getNextBlock:
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    push ebx
+    push edx
+    push esi
+
+    xor ebx, ebx
+
+    lea esi, blockBundle        ; esi = &blockBundle
+    mov bl, blockBundleIndex    ; bl = blockBundleIndex
+    add esi, ebx                ; esi = &blockBundle[blockBundleIndex]
+
+    mov dl, [esi]  ; dl = blockBundle[blockBundleIndex]
+    
+    ; blockBundle[blockBundleIndex] = 다음 블럭
+    call getNextBlockInBundle
+    mov [esi], al
+
+    ; 블럭 번들 인덱스 설정
+    inc bl
+    cmp bl, NUM_BLOCK_SHAPES
+    jne lb_get_next_block_return
+
+    xor bl, bl  ; blockBundleIndex 0으로 초기화
+
+lb_get_next_block_return:
+    mov [blockBundleIndex], bl    
+
+    mov al, dl
+
+    ; 에필로그
+    pop esi
+    pop edx
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret

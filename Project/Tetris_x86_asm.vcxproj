@@ -152,6 +152,7 @@
     <None Include="..\Source\ConsoleUtil.Inc" />
     <None Include="..\Source\Game.inc" />
     <None Include="..\Source\GameDraw.inc" />
+    <None Include="..\Source\GameUpdate.inc" />
     <None Include="..\Source\Random.inc" />
   </ItemGroup>
   <ItemGroup>

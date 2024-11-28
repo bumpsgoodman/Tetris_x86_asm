@@ -374,3 +374,26 @@ lb_draw_line_return:
     mov esp, ebp
     pop ebp
     ret 16
+
+;=========================================
+; 함수 이름: DrawBlock
+; 설명: 이 함수는 블럭을 그리는 함수입니다.
+; 매개변수: 없음
+; 반환값: 없음
+;=========================================
+DrawBlock:
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    push ebx
+    push edx
+
+    TODO:
+
+lb_draw_block_return:
+    ; 에필로그
+    pop edx
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret

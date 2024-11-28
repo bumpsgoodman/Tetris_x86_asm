@@ -6,6 +6,7 @@
     <None Include="..\Source\Random.inc" />
     <None Include="..\Source\Game.inc" />
     <None Include="..\Source\GameDraw.inc" />
+    <None Include="..\Source\GameUpdate.inc" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\Source\Main.asm" />
