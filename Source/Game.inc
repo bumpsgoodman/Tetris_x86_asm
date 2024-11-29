@@ -1,6 +1,3 @@
-INCLUDE GameDraw.inc
-INCLUDE Random.inc
-
 .data
 
 BOARD_ROWS  EQU     22
@@ -21,13 +18,13 @@ BLOCK_SHAPE_S       EQU 5
 BLOCK_SHAPE_Z       EQU 6
 
 NUM_OFFSETS     EQU 3
-BLOCK_OFFSETS   DB    -1, 0,  1,  0,  2,  0     ; I
-                DB     1, 0,  0,  1,  1,  1     ; O
-                DB    -1, 0, -1, -1,  1,  0     ; L
-                DB    -1, 0,  1,  0,  1, -1     ; J
-                DB    -1, 0,  1,  0,  0, -1     ; T
-                DB    -1, 0,  0, -1,  1, -1     ; S
-                DB     1, 0,  0, -1, -1, -1     ; Z
+BLOCK_OFFSETS   DB    -1, 0,     1,  0,      2,  0     ; I
+                DB     1, 0,     0,  1,      1,  1     ; O
+                DB    -1, 0,    -1, -1,      1,  0     ; L
+                DB    -1, 0,     1,  0,      1, -1     ; J
+                DB    -1, 0,     1,  0,      0, -1     ; T
+                DB    -1, 0,     0, -1,      1, -1     ; S
+                DB     1, 0,     0, -1,     -1, -1     ; Z
 
 shapeFlag           DB 0 ; getNextBlockInBundle 전용 변수
 
@@ -42,6 +39,10 @@ blockY              DB ?
 
 shadowX             DB ?
 shadowY             DB ?
+
+INCLUDE Random.inc
+INCLUDE GameDraw.inc
+INCLUDE GameUpdate.inc
 
 .code
 
@@ -79,6 +80,13 @@ lb_make_block_bundle_loop:
     ; 1. 블럭 그리기
     ; 2. 다음 블럭 그리기
     ; 3. 블럭 초기 위치 설정
+
+    movzx eax, block
+    push BOARD_STATE_BLOCK
+    push eax
+    push 5
+    push 5
+    call tryBlockToBoard
 
 lb_init_game_return:
     ; 에필로그
