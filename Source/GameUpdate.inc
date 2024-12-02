@@ -70,21 +70,21 @@ tryBlockToBoard:
     mul block               ; eax = BLOCK_OFFSETS[block]
     add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
 
-    lea edi, [ebp - 12]     ; edi = &actualX[NUM_OFFSETS - 1]
-    lea edx, [ebp - 24]     ; edx = &actualY[NUM_OFFSETS - 1]
+    lea edi, [ebp - 4]      ; edi = &actualX[0]
+    lea edx, [ebp - 16]     ; edx = &actualY[0]
 
     mov ecx, NUM_OFFSETS
 lb_calculate_actual_pos:
     movzx eax, blockY       ; eax = blockY
     mov ebx, [esi + 1]      ; ebx = offsetY
-    add eax, ebx            ; eax = blockY + offsetY
+    add al, bl              ; eax = blockY + offsetY
     mov [edx], eax          ; actualY[ecx - 1] = blockY + offsetY
 
     push eax                ; 올바른 위치인지 검사하기 위해 계산된 y 좌표 push
     
     movzx eax, blockX       ; eax = blockX
     mov ebx, [esi]          ; ebx = offsetX
-    add eax, ebx            ; eax = blockX + offsetX
+    add al, bl              ; eax = blockX + offsetX
     mov [edi], eax          ; actualX[ecx - 1] = blockX + offsetX
 
     push eax                ; 올바른 위치인지 검사하기 위해 계산된 x 좌표 push
@@ -95,8 +95,8 @@ lb_calculate_actual_pos:
     jz lb_try_block_to_board_return
 
     add esi, 2              ; 다음 오프셋으로 이동
-    sub edi, 4              ; 다음 actualX로 이동
-    sub edx, 4              ; 다음 actualY로 이동
+    add edi, 4              ; 다음 actualX로 이동
+    add edx, 4              ; 다음 actualY로 이동
 
     loop lb_calculate_actual_pos
 

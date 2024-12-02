@@ -81,10 +81,13 @@ lb_make_block_bundle_loop:
     ; 2. 다음 블럭 그리기
     ; 3. 블럭 초기 위치 설정
 
+    mov [blockX], 5
+    mov [blockY], 6
+
     movzx eax, block
     push BOARD_STATE_BLOCK
     push eax
-    push 5
+    push 6
     push 5
     call tryBlockToBoard
 
