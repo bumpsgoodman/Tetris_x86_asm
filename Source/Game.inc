@@ -3,10 +3,10 @@
 BOARD_ROWS  EQU     22
 BOARD_COLS  EQU     10
 
-BOARD_STATE_SPACE   EQU     0
-BOARD_STATE_BLOCK   EQU     1
-BOARD_STATE_FIXED   EQU     2
-BOARD_STATE_SHADOW  EQU     3
+BOARD_STATE_SPACE   EQU 0
+BOARD_STATE_BLOCK   EQU 1
+BOARD_STATE_FIXED   EQU 2
+BOARD_STATE_SHADOW  EQU 3
 
 NUM_BLOCK_SHAPES    EQU 7
 BLOCK_SHAPE_I       EQU 0
@@ -144,8 +144,8 @@ DrawGame:
     call DrawGameSection
     call DrawNextSection
 
-    ; TODO: 블럭 그리기
-    ; 블럭 그리기
+    ; TODO: 보드 그리기
+    ; 보드 그리기
 
     ; TODO: 다음 블럭 그리기
     ; 다음 블럭 그리기

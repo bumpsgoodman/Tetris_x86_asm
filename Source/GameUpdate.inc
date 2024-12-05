@@ -38,8 +38,8 @@ lb_update_board_return:
 ;=========================================
 tryBlockToBoard:
     ; 지역 변수:
-    ;   - actualX[NUM_OFFSETS] (ebp - 12)
-    ;   - actualY[NUM_OFFSETS] (ebp - 24)
+    ;   - actualX[NUM_OFFSETS] (ebp - 4)
+    ;   - actualY[NUM_OFFSETS] (ebp - 16)
 
     ; 프롤로그
     push ebp
@@ -95,12 +95,65 @@ lb_calculate_actual_pos:
     jz lb_try_block_to_board_return
 
     add esi, 2              ; 다음 오프셋으로 이동
-    add edi, 4              ; 다음 actualX로 이동
-    add edx, 4              ; 다음 actualY로 이동
+    sub edi, 4              ; 다음 actualX로 이동
+    sub edx, 4              ; 다음 actualY로 이동
 
     loop lb_calculate_actual_pos
 
     ;-----------------------------------
+
+    ; 실제 보드에 블럭 넣기
+    ;-----------------------------------
+
+    lea edi, board          ; edi = &board
+    movzx ebx, blockX       ; ebx = blockX
+    movzx edx, blockY       ; edx = blockY
+
+    ; edi = &board[y][x] = board + y * BOARD_COLS + x
+    mov eax, BOARD_COLS
+    mul edx
+    add eax, ebx
+    add edi, eax
+
+    ; board[y][x] = state
+    mov eax, [ebp + 20]
+    mov [edi], eax
+
+    lea ebx, [ebp - 4]      ; ebx = &actualX[0]
+    lea edx, [ebp - 16]     ; edx = &actualY[0]
+
+    mov ecx, NUM_OFFSETS
+lb_try_to_board_loop:
+    push ecx                ; ecx 백업
+    push edx                ; edx 백업, mul 연산 시, edx가 덮어 씌워짐
+
+    lea edi, board          ; edi = &board
+
+    mov eax, BOARD_COLS     ; eax = BOARD_COLS
+    mov ecx, [edx]          ; ecx = actualY[i]
+    mul ecx
+    
+    mov ecx, [ebx]          ; ecx = actualX[i]
+    add eax, ecx
+    
+    ; edi = &board[actualY[i]][actualX[i]] = board + y * BOARD_COLS + x
+    add edi, eax
+
+    ; board[actualY[i]][actualX[i]] = state
+    mov eax, [ebp + 20]
+    mov [edi], al
+
+    pop edx
+
+    sub ebx, 4
+    sub edx, 4
+
+    pop ecx
+    loop lb_try_to_board_loop
+
+    ;-----------------------------------
+
+    mov eax, 1
 
 lb_try_block_to_board_return:
     ; 에필로그

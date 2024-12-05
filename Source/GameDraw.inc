@@ -143,6 +143,52 @@ lb_next_status_section_return:
     ret
 
 ;=========================================
+; 함수 이름: DrawBoard
+; 설명: 이 함수는 보드를 그리는 함수입니다.
+; 매개변수: 없음
+; 반환값: 없음
+;=========================================
+DrawBoard:
+    ; 지역 변수:
+    ;   - x (ebp - 4)
+    ;   - y (ebp - 8)
+
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    sub esp, 8
+    push ebx
+    push edx
+    push esi
+
+    mov [ebp - 4], 32       ; x = 32
+    mov [ebp - 8], 20       ; y = 2
+
+    ; TODO: draw board
+
+    lea esi, board          ; esi = &board
+
+    mov ecx, BOARD_ROWS     ; ecx = BOARD_ROWS
+lb_draw_board_loop0:
+    push ecx                ; ecx 백업
+
+    mov ecx, BOARD_COLS
+    lb_draw_board_loop1:
+        
+
+    pop ecx
+    loop ecx
+
+lb_draw_board_return:
+    ; 에필로그
+    pop esi
+    pop edx
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret
+
+;=========================================
 ; 함수 이름: drawSection
 ; 설명: 이 함수는 섹션을 그리는 함수입니다.
 ; 매개변수:
