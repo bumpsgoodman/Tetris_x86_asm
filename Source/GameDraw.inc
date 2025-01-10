@@ -164,7 +164,7 @@ DrawBoard:
     mov [ebp - 4], 32       ; x = 32
     mov [ebp - 8], 20       ; y = 2
 
-    ; TODO: draw board
+    ; TODO: gotoxy
 
     lea esi, board          ; esi = &board
 
@@ -172,12 +172,63 @@ DrawBoard:
 lb_draw_board_loop0:
     push ecx                ; ecx 백업
 
-    mov ecx, BOARD_COLS
+    mov ecx, BOARD_COLS     ; ecx = BOARD_COLS
     lb_draw_board_loop1:
+
+        ; 블럭 상태 검사
+        movzx ebx, [esi]
+        cmp ebx, BOARD_STATE_SPACE
+        jne lb_test_state_block
+
+        ; 상태가 공백인 경우
+        push 0  ; blue
+        push 0  ; green
+        push 0  ; red
+        call SetBackColor
+
+        jmp lb_draw_state
+
+    lb_test_state_block:
+        cmp ebx, BOARD_STATE_BLOCK
+        jne lb_test_state_fixed
+
+        push 0      ; blue
+        push 0      ; green
+        push 255    ; red
+        call SetBackColor
+
+        jmp lb_draw_state
+
+    lb_test_state_fixed:
+        cmp ebx, BOARD_STATE_FIXED
+        jne lb_test_state_shadow
+
+        push 255    ; blue
+        push 0      ; green
+        push 0      ; red
+        call SetBackColor
+
+        jmp lb_draw_state
+
+    lb_test_state_shadow:
+        ; shadow까지 아닌 경우는 고려하지 않음
+
+        push 0      ; blue
+        push 255    ; green
+        push 0      ; red
+        call SetBackColor
+
+    lb_draw_state:
+        push 5                  ; TODO: 길이 하드 코딩 말고, 변수 따로 만들기
+        push SEQ_ERASE_CHAR2
+        call Print
+
+        inc esi             ; 다음으로 그릴 대상으로 이동
         
+        loop lb_draw_board_loop1
 
     pop ecx
-    loop ecx
+    loop lb_draw_board_loop0
 
 lb_draw_board_return:
     ; 에필로그
