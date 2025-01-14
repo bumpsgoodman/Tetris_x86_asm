@@ -291,6 +291,45 @@ lb_draw_board_return:
     ret
 
 ;=========================================
+; 함수 이름: DrawNextBlocks
+; 설명: 이 함수는 다음 블럭들을 그리는 함수입니다.
+; 매개변수: 없음
+; 반환값: 없음
+;=========================================
+DrawNextBlocks:
+    ; 지역 변수:
+    ;   - x (ebp - 4)
+    ;   - y (ebp - 8)
+    ;   - row (ebp - 12)
+    ;   - col (ebp - 16)
+
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    sub esp, 12
+    push ebx
+    push edx
+    push esi
+
+    ; TODO: 다음 블럭 그리기
+    ; tryBlockToBoard 함수 참고하면 될듯
+
+lb_draw_next_blocks_return:
+    ; 기본 텍스트 배경 색상으로 변경
+    push 12    ; blue
+    push 12    ; green
+    push 12    ; red
+    call SetBackColor
+
+    ; 에필로그
+    pop esi
+    pop edx
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret
+
+;=========================================
 ; 함수 이름: drawSection
 ; 설명: 이 함수는 섹션을 그리는 함수입니다.
 ; 매개변수:

@@ -76,11 +76,6 @@ lb_make_block_bundle_loop:
     call getNextBlock
     mov [block], al
 
-    ; TODO
-    ; 1. 블럭 그리기
-    ; 2. 다음 블럭 그리기
-    ; 3. 블럭 초기 위치 설정
-
     mov [blockX], 5
     mov [blockY], 6
 
