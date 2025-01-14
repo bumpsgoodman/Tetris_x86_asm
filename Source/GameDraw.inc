@@ -128,7 +128,7 @@ DrawNextSection:
     lea edx, NEXT_SECTION_TITLE
     push ebx    ; titleLength
     push edx    ; pTitle
-    push 24     ; bottomRightY
+    push 26     ; bottomRightY
     push 69     ; bottomRightX
     push 1      ; topLeftY
     push 53     ; topLeftX
@@ -158,7 +158,7 @@ DrawBoard:
     ; 프롤로그
     push ebp
     mov ebp, esp
-    sub esp, 12
+    sub esp, 16
     push ebx
     push edx
     push esi
@@ -300,8 +300,7 @@ DrawNextBlocks:
     ; 지역 변수:
     ;   - x (ebp - 4)
     ;   - y (ebp - 8)
-    ;   - row (ebp - 12)
-    ;   - col (ebp - 16)
+    ;   - index (ebp - 12)
 
     ; 프롤로그
     push ebp
@@ -311,8 +310,107 @@ DrawNextBlocks:
     push edx
     push esi
 
-    ; TODO: 다음 블럭 그리기
-    ; tryBlockToBoard 함수 참고하면 될듯
+    ; 배경색 지정
+    push 0    ; blue
+    push 255    ; green
+    push 255      ; red
+    call SetBackColor
+
+    ; x = 60
+    mov eax, 60
+    mov [ebp - 4], eax
+
+    ; y = 4
+    mov eax, 4
+    mov [ebp - 8], eax
+
+    ; index = blockBundleIndex
+    movzx edx, blockBundleIndex
+    mov [ebp - 12], edx
+
+    mov ecx, 6
+lb_draw_next_block:
+    push ecx
+
+    lea esi, blockBundle            ; esi = &blockBundle
+    xor edx, edx
+    mov dl, [ebp - 12]              ; edx = index
+    add esi, edx                    ; esi = &blockBundle[index]
+
+    ; ebx = blockBundle[index]
+    mov bl, [esi]
+
+    ; esi = 블럭 오프셋
+    lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
+    mov eax, 6
+    mul bl                  ; eax = BLOCK_OFFSETS[block]
+    add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
+
+    mov ecx, NUM_OFFSETS
+lb_calculate_actual_block_pos:
+    push ecx
+
+    ; y 오프셋 구하기
+    mov edx, [ebp - 8]      ; edx = y
+    mov ebx, [esi + 1]      ; ebx = offsetY
+    add dl, bl              ; edx = y + offsetY
+
+    ; x 오프셋 구하기
+    mov eax, [esi]          ; eax = offsetX
+    mov ebx, 2
+    mul bl                  ; 오프셋에 * 2해서 출력할 때 보기 좋게 간격 넓히기
+    mov ebx, [ebp - 4]      ; ebx = x
+    add al, bl              ; eax = x + offsetX
+
+    ; 커서 조정
+    push edx    ; actualY
+    push eax    ; actualX
+    call GotoXY
+
+    lea ebx, SEQ_ERASE_CHAR2
+    push 5                  ; TODO: 길이 하드 코딩 말고, 변수 따로 만들기
+    push ebx
+    call Print
+
+    add esi, 2              ; 다음 오프셋으로 이동
+
+    pop ecx
+    loop lb_calculate_actual_block_pos
+
+    ; 커서 조정
+    mov ebx, [ebp - 4]  ; x
+    mov edx, [ebp - 8]  ; y
+    push edx            ; y
+    push ebx            ; x
+    call GotoXY
+
+    lea ebx, SEQ_ERASE_CHAR2
+    push 5                  ; TODO: 길이 하드 코딩 말고, 변수 따로 만들기
+    push ebx
+    call Print
+
+    ; 다음 블럭을 그리기 위한 y 증가
+    mov eax, 4
+    add [ebp - 8], eax
+
+    ; 다음 index로 이동
+    mov eax, [ebp - 12]
+    inc eax
+    mov edx, eax
+    cmp eax, 7
+    jne lb_no_overflow_index
+
+    mov bl, 7
+    div bl
+    movzx edx, ah
+
+lb_no_overflow_index:
+    mov [ebp - 12], edx
+
+    pop ecx
+    dec ecx
+    test ecx, ecx
+    jnz lb_draw_next_block
 
 lb_draw_next_blocks_return:
     ; 기본 텍스트 배경 색상으로 변경
