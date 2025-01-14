@@ -283,7 +283,7 @@ lb_set_text_color_return:
     pop ebx
     mov esp, ebp
     pop ebp
-    ret
+    ret 12
 
 ;=========================================
 ; 함수 이름: SetBackColor
@@ -375,7 +375,7 @@ lb_set_back_color_return:
     pop ebx
     mov esp, ebp
     pop ebp
-    ret
+    ret 12
 
 ;=========================================
 ; 함수 이름: SetAsciiDrawingMode

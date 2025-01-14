@@ -144,8 +144,8 @@ DrawGame:
     call DrawGameSection
     call DrawNextSection
 
-    ; TODO: 보드 그리기
     ; 보드 그리기
+    call DrawBoard
 
     ; TODO: 다음 블럭 그리기
     ; 다음 블럭 그리기

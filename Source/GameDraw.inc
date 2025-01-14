@@ -152,44 +152,72 @@ DrawBoard:
     ; 지역 변수:
     ;   - x (ebp - 4)
     ;   - y (ebp - 8)
+    ;   - row (ebp - 12)
+    ;   - col (ebp - 16)
 
     ; 프롤로그
     push ebp
     mov ebp, esp
-    sub esp, 8
+    sub esp, 12
     push ebx
     push edx
     push esi
 
-    mov [ebp - 4], 32       ; x = 32
-    mov [ebp - 8], 20       ; y = 2
+    mov ebx, 32
+    mov [ebp - 4], ebx      ; x = 32
 
-    ; TODO: gotoxy
+    mov ebx, 2
+    mov [ebp - 8], ebx      ; y = 2
 
     lea esi, board          ; esi = &board
 
     mov ecx, BOARD_ROWS     ; ecx = BOARD_ROWS
 lb_draw_board_loop0:
     push ecx                ; ecx 백업
+    mov [ebp - 12], ecx     ; row = 0
 
     mov ecx, BOARD_COLS     ; ecx = BOARD_COLS
     lb_draw_board_loop1:
+        push ecx            ; ecx 백업
+        mov [ebp - 16], ecx
+
+        ; 커서 조정
+        mov ebx, [ebp - 4]      ; ebx = x
+        mov edx, [ebp - 8]      ; edx = y
+        push edx
+        push ebx
+        call GotoXY
 
         ; 블럭 상태 검사
-        movzx ebx, [esi]
-        cmp ebx, BOARD_STATE_SPACE
+        mov bl, [esi]
+        cmp bl, BOARD_STATE_SPACE
         jne lb_test_state_block
+        
+        mov eax, [ebp - 12]     ; eax = row
+        add eax, [ebp - 16]     ; eax = row + col
+        mov ebx, 2
+        div bx
+        test dx, dx             ; eax % 2 == 0 검사
+        jz lb_space_black
+
+        push 48  ; blue
+        push 48  ; green
+        push 48  ; red
+        call SetBackColor
+
+        jmp lb_draw_state
 
         ; 상태가 공백인 경우
-        push 0  ; blue
-        push 0  ; green
-        push 0  ; red
+    lb_space_black:
+        push 12  ; blue
+        push 12  ; green
+        push 12  ; red
         call SetBackColor
 
         jmp lb_draw_state
 
     lb_test_state_block:
-        cmp ebx, BOARD_STATE_BLOCK
+        cmp bl, BOARD_STATE_BLOCK
         jne lb_test_state_fixed
 
         push 0      ; blue
@@ -200,7 +228,7 @@ lb_draw_board_loop0:
         jmp lb_draw_state
 
     lb_test_state_fixed:
-        cmp ebx, BOARD_STATE_FIXED
+        cmp bl, BOARD_STATE_FIXED
         jne lb_test_state_shadow
 
         push 255    ; blue
@@ -212,25 +240,48 @@ lb_draw_board_loop0:
 
     lb_test_state_shadow:
         ; shadow까지 아닌 경우는 고려하지 않음
-
         push 0      ; blue
         push 255    ; green
         push 0      ; red
         call SetBackColor
 
     lb_draw_state:
+        lea ebx, SEQ_ERASE_CHAR2
         push 5                  ; TODO: 길이 하드 코딩 말고, 변수 따로 만들기
-        push SEQ_ERASE_CHAR2
+        push ebx
         call Print
 
         inc esi             ; 다음으로 그릴 대상으로 이동
+
+        mov ebx, [ebp - 4]  ; ebx = x
+        add ebx, 2          ; x증가
+        mov [ebp - 4], ebx
         
-        loop lb_draw_board_loop1
+        pop ecx
+        dec ecx
+        test ecx, ecx
+        jnz lb_draw_board_loop1
+
+    mov ebx, [ebp - 4]  ; ebx = x
+    mov edx, [ebp - 8]  ; edx = y
+    inc edx             ; y 증가
+    mov ebx, 32         ; x 초기화
+    mov [ebp - 4], ebx
+    mov [ebp - 8], edx
 
     pop ecx
-    loop lb_draw_board_loop0
+    dec ecx
+    test ecx, ecx
+    jnz lb_draw_board_loop0
+    ; loop lb_draw_board_loop0
 
 lb_draw_board_return:
+    ; 기본 텍스트 배경 색상으로 변경
+    push 12    ; blue
+    push 12    ; green
+    push 12    ; red
+    call SetBackColor
+
     ; 에필로그
     pop esi
     pop edx
