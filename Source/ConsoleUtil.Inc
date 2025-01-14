@@ -2,7 +2,6 @@ INCLUDE AsciiUtil.inc
 
 EXTRN GetStdHandle@4 : PROC
 EXTRN WriteConsoleA@20 : PROC
-EXTRN ReadConsoleA@20 : PROC
 
 EXTRN GetConsoleMode@8 : PROC
 EXTRN SetConsoleMode@8 : PROC
@@ -63,7 +62,7 @@ InitConsole:
     ; 프롤로그
     push ebp
     mov ebp, esp
-    sub esp, 4
+    sub esp, 8
     push ebx
 
     push -10                    ; STD_INPUT_HANDLE
@@ -86,6 +85,22 @@ InitConsole:
     push eax                    ; dwMode, 지정할 모드
     push STD_OUTPUT_HANDLE      ; hConsoleHandle, 콘솔 핸들
     call SetConsoleMode@8
+
+    ; STD_INPUT 콘솔 모드 얻기
+    ; lea eax, [ebp - 8]
+    ; push eax
+    ; push STD_INPUT_HANDLE
+    ; call GetConsoleMode@8
+    
+    ; STD_INPUT VT 모드 켜기
+    ; mov eax, [ebp - 8]
+    ; or eax, 512 ; ENABLE_VIRTUAL_TERMINAL_INPUT
+    ; mov ebx, 6
+    ; not ebx
+    ; and eax, ebx
+    ; push eax
+    ; push STD_INPUT_HANDLE
+    ; call SetConsoleMode@8
 
     ; 커서 숨기기
     movzx eax, SEQ_HIDE_CURSOR_LENGTH   ; eax = 커서 숨기기 시퀀스 길이 저장
