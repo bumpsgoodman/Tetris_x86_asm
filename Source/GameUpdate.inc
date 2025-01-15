@@ -5,33 +5,6 @@ EXTRN GetAsyncKeyState@4 : PROC
 .code
 
 ;=========================================
-; 함수 이름: UpdateBoard
-; 설명: 이 함수는 보드를 업데이트하는 함수입니다.
-; 매개변수: 없음
-; 반환값: 없음
-;=========================================
-UpdateBoard:
-    ; 프롤로그
-    push ebp
-    mov ebp, esp
-    push ebx
-    push edx
-    push esi
-    push edi
-
-    ; 블럭을 보드에 넣기 시도
-
-lb_update_board_return:
-    ; 에필로그
-    pop edi
-    pop esi
-    pop edx
-    pop ebx
-    mov esp, ebp
-    pop ebp
-    ret
-
-;=========================================
 ; 함수 이름: UpdateKey
 ; 설명: 이 함수는 키 상태를 업데이트합니다.
 ; 매개변수:
@@ -87,7 +60,6 @@ lb_update_key_return:
     pop ebp
     ret 8
 
-; TODO: 전체 로직 검사
 ;=========================================
 ; 함수 이름: tryBlockToBoard
 ; 설명: 이 함수는 블럭을 보드에 넣기를 시도합니다.
@@ -114,7 +86,7 @@ tryBlockToBoard:
 
     ; 올바른 좌표인지 검사
     mov ebx, [ebp + 8]      ; ebx = x
-    mov edx, [ebp + 16]     ; edx = y
+    mov edx, [ebp + 12]     ; edx = y
     push edx    ; y
     push ebx    ; x
     call isValidPos
@@ -128,8 +100,9 @@ tryBlockToBoard:
 
     ; esi = 블럭 오프셋
     lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
+    mov ebx, [ebp + 16]     ; ebx = block
     mov eax, 6
-    mul block               ; eax = BLOCK_OFFSETS[block]
+    imul eax, ebx           ; eax = BLOCK_OFFSETS[block]
     add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
 
     lea edi, [ebp - 4]      ; edi = &actualX[0]
@@ -137,17 +110,17 @@ tryBlockToBoard:
 
     mov ecx, NUM_OFFSETS
 lb_calculate_actual_pos:
-    mov eax, [ebp + 12]       ; eax = blockY
-    mov ebx, [esi + 1]      ; ebx = offsetY
-    add al, bl              ; eax = blockY + offsetY
-    mov [edx], eax          ; actualY[ecx - 1] = blockY + offsetY
+    mov eax, [ebp + 12]     ; eax = y
+    mov bl, [esi + 1]       ; ebx = offsetY
+    add al, bl              ; eax = y + offsetY
+    mov [edx], eax          ; actualY[i] = y + offsetY
 
     push eax                ; 올바른 위치인지 검사하기 위해 계산된 y 좌표 push
     
-    mov eax, [ebp + 8]       ; eax = blockX
-    mov ebx, [esi]          ; ebx = offsetX
-    add al, bl              ; eax = blockX + offsetX
-    mov [edi], eax          ; actualX[ecx - 1] = blockX + offsetX
+    mov eax, [ebp + 8]      ; eax = x
+    mov bl, [esi]           ; ebx = offsetX
+    add al, bl              ; eax = x + offsetX
+    mov [edi], eax          ; actualX[i] = x + offsetX
 
     push eax                ; 올바른 위치인지 검사하기 위해 계산된 x 좌표 push
     call isValidPos
@@ -168,32 +141,31 @@ lb_calculate_actual_pos:
     ;-----------------------------------
 
     lea edi, board          ; edi = &board
-    mov ebx, [ebp + 8]       ; ebx = blockX
-    mov edx, [ebp + 12]       ; edx = blockY
+    mov ebx, [ebp + 8]      ; ebx = x
+    mov ecx, [ebp + 12]     ; ecx = y
 
     ; edi = &board[y][x] = board + y * BOARD_COLS + x
     mov eax, BOARD_COLS
-    mul edx
+    imul eax, ecx
     add eax, ebx
     add edi, eax
 
     ; board[y][x] = state
     mov eax, [ebp + 20]
-    mov [edi], eax
+    mov [edi], al
 
     lea ebx, [ebp - 4]      ; ebx = &actualX[0]
-    lea edx, [ebp - 16]     ; edx = &actualY[0]
+    lea esi, [ebp - 16]     ; esi = &actualY[0]
 
     mov ecx, NUM_OFFSETS
 lb_try_to_board_loop:
     push ecx                ; ecx 백업
-    push edx                ; edx 백업, mul 연산 시, edx가 덮어 씌워짐
 
     lea edi, board          ; edi = &board
 
     mov eax, BOARD_COLS     ; eax = BOARD_COLS
-    mov ecx, [edx]          ; ecx = actualY[i]
-    mul ecx
+    mov ecx, [esi]          ; ecx = actualY[i]
+    imul eax, ecx
     
     mov ecx, [ebx]          ; ecx = actualX[i]
     add eax, ecx
@@ -205,10 +177,8 @@ lb_try_to_board_loop:
     mov eax, [ebp + 20]
     mov [edi], al
 
-    pop edx
-
     sub ebx, 4
-    sub edx, 4
+    sub esi, 4
 
     pop ecx
     loop lb_try_to_board_loop
@@ -247,17 +217,21 @@ isValidPos:
 
     ; x >= BOARD_COLS 검사
     mov ebx, [ebp + 8]          ; ebx = x
-    cmp ebx, esi
+    cmp ebx, BOARD_COLS
     jge lb_is_valid_pos_return
+
+    ; x < 0 검사
+    cmp ebx, 0
+    jl lb_is_valid_pos_return
 
     ; y >= BOARD_ROWS 검사
     mov edx, [ebp + 12]         ; edx = y
     cmp edx, BOARD_ROWS
     jge lb_is_valid_pos_return
 
-    mov eax, BOARD_COLS         ; esi = BOARD_COLS
+    mov eax, BOARD_COLS         ; eax = BOARD_COLS
     mul edx                     ; eax = y * BOARD_COLS
-    add edx, ebx                ; eax = (y * BOARD_COLS) + x
+    add eax, ebx                ; eax = (y * BOARD_COLS) + x
     
     ; esi = &board[y][x] = &board[y * BOARD_COLS + x]
     lea esi, board
@@ -266,8 +240,9 @@ isValidPos:
     xor eax, eax
 
     ; board[y][x] == BOARD_STATE_FIXED 검사
-    mov ebx, [esi]              ; ebx = board[y][x]
-    cmp ebx, BOARD_STATE_FIXED
+    mov bl, [esi]              ; bl = board[y][x]
+    mov dl, BOARD_STATE_FIXED
+    cmp bl, dl
     je lb_is_valid_pos_return
 
     inc eax

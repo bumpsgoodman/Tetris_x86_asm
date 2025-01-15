@@ -9,13 +9,6 @@ BOARD_STATE_FIXED   EQU 2
 BOARD_STATE_SHADOW  EQU 3
 
 NUM_BLOCK_SHAPES    EQU 7
-BLOCK_SHAPE_I       EQU 0
-BLOCK_SHAPE_O       EQU 1
-BLOCK_SHAPE_L       EQU 2
-BLOCK_SHAPE_J       EQU 3
-BLOCK_SHAPE_T       EQU 4
-BLOCK_SHAPE_S       EQU 5
-BLOCK_SHAPE_Z       EQU 6
 
 NUM_OFFSETS     EQU 3
 BLOCK_OFFSETS   DB    -1, 0,     1,  0,      2,  0      ; I
@@ -50,11 +43,11 @@ VK_UP               EQU     026h
 VK_DOWN             EQU     028h
 VK_SPACE            EQU     020h
 
-leftKeyState        DWORD   0
-rightKeyState       DWORD   0
-upKeyState          DWORD   0
-downKeyState        DWORD   0
-spaceKeyState       DWORD   0
+leftKeyState        DD   0
+rightKeyState       DD   0
+upKeyState          DD   0
+downKeyState        DD   0
+spaceKeyState       DD   0
 
 INCLUDE Random.inc
 INCLUDE GameDraw.inc
@@ -230,11 +223,11 @@ lb_space_key:
     cmp spaceKeyState, KEY_STATE_DOWN
     jne lb_update
 
+    ; -------------------------------------
+
     ; nextX, nextY 업데이트
     mov [ebp - 4], ebx
     mov [ebp - 8], edx
-
-    ; -------------------------------------
 
 lb_update:
     ; 블럭 그리기
@@ -273,16 +266,19 @@ lb_fixed:
     ; 블럭 고정 시키기
     push BOARD_STATE_FIXED
     xor eax, eax
-    mov al, block
+    mov al, [block]
     push eax
-    mov al, blockY
+    mov al, [blockY]
     push eax
-    mov al, blockX
+    mov al, [blockX]
     push eax
     call TryBlockToBoard
 
-    mov blockX, 3
-    mov blockY, 2
+    mov [blockX], 3
+    mov [blockY], 2
+
+    call getNextBlock
+    mov [block], al
 
 lb_update_game_return:
     ; 에필로그
