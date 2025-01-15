@@ -1,3 +1,5 @@
+EXTRN GetAsyncKeyState@4 : PROC
+
 .data
 
 .code
@@ -14,16 +16,76 @@ UpdateBoard:
     mov ebp, esp
     push ebx
     push edx
+    push esi
+    push edi
 
     ; 블럭을 보드에 넣기 시도
 
 lb_update_board_return:
     ; 에필로그
+    pop edi
+    pop esi
     pop edx
     pop ebx
     mov esp, ebp
     pop ebp
     ret
+
+;=========================================
+; 함수 이름: UpdateKey
+; 설명: 이 함수는 키 상태를 업데이트합니다.
+; 매개변수:
+;   - virtualKey: 가상 키 코드 (ebp + 8)
+;   - pKeyState: 키 상태 포인터 (ebp + 12)
+; 반환값: 없음
+;=========================================
+UpdateKey:
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    push ebx
+    push edx
+    push esi
+    push edi
+
+    mov edi, [ebp + 12] ; edi = pKeyState
+
+    mov eax, [ebp + 8]  ; eax = virtualKey
+    push eax
+    call GetAsyncKeyState@4
+
+    ; key가 눌려있는지 확인
+    test eax, eax
+    jz lb_key_up
+
+    ; 이전 상태가 UP인지 확인
+    mov eax, [edi]
+    cmp eax, KEY_STATE_UP
+    jne lb_key_pressed
+
+lb_key_down:
+    mov eax, KEY_STATE_DOWN
+    mov [edi], eax
+    jmp lb_update_key_return
+
+lb_key_pressed:
+    mov eax, KEY_STATE_PRESSED
+    mov [edi], eax
+    jmp lb_update_key_return
+
+lb_key_up:
+    mov eax, KEY_STATE_UP
+    mov [edi], eax
+
+lb_update_key_return:
+    ; 에필로그
+    pop edi
+    pop esi
+    pop edx
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret 8
 
 ; TODO: 전체 로직 검사
 ;=========================================
@@ -75,14 +137,14 @@ tryBlockToBoard:
 
     mov ecx, NUM_OFFSETS
 lb_calculate_actual_pos:
-    movzx eax, blockY       ; eax = blockY
+    mov eax, [ebp + 12]       ; eax = blockY
     mov ebx, [esi + 1]      ; ebx = offsetY
     add al, bl              ; eax = blockY + offsetY
     mov [edx], eax          ; actualY[ecx - 1] = blockY + offsetY
 
     push eax                ; 올바른 위치인지 검사하기 위해 계산된 y 좌표 push
     
-    movzx eax, blockX       ; eax = blockX
+    mov eax, [ebp + 8]       ; eax = blockX
     mov ebx, [esi]          ; ebx = offsetX
     add al, bl              ; eax = blockX + offsetX
     mov [edi], eax          ; actualX[ecx - 1] = blockX + offsetX
@@ -106,8 +168,8 @@ lb_calculate_actual_pos:
     ;-----------------------------------
 
     lea edi, board          ; edi = &board
-    movzx ebx, blockX       ; ebx = blockX
-    movzx edx, blockY       ; edx = blockY
+    mov ebx, [ebp + 8]       ; ebx = blockX
+    mov edx, [ebp + 12]       ; edx = blockY
 
     ; edi = &board[y][x] = board + y * BOARD_COLS + x
     mov eax, BOARD_COLS

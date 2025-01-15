@@ -40,6 +40,22 @@ blockY              DB ?
 shadowX             DB ?
 shadowY             DB ?
 
+KEY_STATE_UP        EQU     0
+KEY_STATE_DOWN      EQU     1
+KEY_STATE_PRESSED   EQU     2
+
+VK_LEFT             EQU     025h
+VK_RIGHT            EQU     027h
+VK_UP               EQU     026h
+VK_DOWN             EQU     028h
+VK_SPACE            EQU     020h
+
+leftKeyState        DWORD   0
+rightKeyState       DWORD   0
+upKeyState          DWORD   0
+downKeyState        DWORD   0
+spaceKeyState       DWORD   0
+
 INCLUDE Random.inc
 INCLUDE GameDraw.inc
 INCLUDE GameUpdate.inc
@@ -100,12 +116,180 @@ lb_init_game_return:
 ; 반환값: 없음
 ;=========================================
 UpdateGame:
+    ; 지역 변수:
+    ;   - nextX (ebp - 4)
+    ;   - nextY (ebp - 8)
+
     ; 프롤로그
     push ebp
     mov ebp, esp
+    sub esp, 8
+    push ebx
+    push edx
+    push esi
+    push edi
+
+    ; nextX 초기화
+    movzx eax, blockX
+    mov [ebp - 4], eax
+
+    ; nextY 초기화
+    movzx eax, blockY
+    mov [ebp - 8], eax
+
+    ; 잔상 제거하기
+    ; -------------------------------------
+
+    xor eax, eax
+    mov al, BOARD_STATE_SPACE
+    push eax
+    movzx eax, block
+    push eax
+    movzx eax, blockY
+    push eax
+    movzx eax, blockX
+    push eax
+    call tryBlockToBoard
+
+    ; -------------------------------------
+
+    ; 키 업데이트
+    ; -------------------------------------
+
+    ; 왼쪽 방향키 업데이트
+    lea edi, leftKeyState
+    mov eax, VK_LEFT
+    push edi            ; keyState
+    push eax            ; 가상 키 코드
+    call UpdateKey
+
+    ; 오른쪽 방향키 업데이트
+    lea edi, rightKeyState
+    mov eax, VK_RIGHT
+    push edi            ; keyState
+    push eax            ; 가상 키 코드
+    call UpdateKey
+
+    ; 위쪽 방향키 업데이트
+    lea edi, upKeyState
+    mov eax, VK_UP
+    push edi            ; keyState
+    push eax            ; 가상 키 코드
+    call UpdateKey
+
+    ; 아래쪽 방향키 업데이트
+    lea edi, downKeyState
+    mov eax, VK_DOWN
+    push edi            ; keyState
+    push eax            ; 가상 키 코드
+    call UpdateKey
+
+    ; 스페이스바 업데이트
+    lea edi, spaceKeyState
+    mov eax, VK_SPACE
+    push edi            ; keyState
+    push eax            ; 가상 키 코드
+    call UpdateKey
+
+    ; -------------------------------------
+
+    ; 키 처리
+    ; -------------------------------------
+
+    mov ebx, [ebp - 4] ; ebx = nextX
+    mov edx, [ebp - 8] ; edx = nextY
+
+lb_left_key:
+    cmp leftKeyState, KEY_STATE_DOWN
+    jne lb_right_key
+
+    dec ebx
+    jmp lb_update
+
+lb_right_key:
+    cmp rightKeyState, KEY_STATE_DOWN
+    jne lb_up_key
+
+    inc ebx
+    jmp lb_update
+
+lb_up_key:
+    cmp upKeyState, KEY_STATE_DOWN
+    jne lb_down_key
+
+    jmp lb_update
+
+lb_down_key:
+    cmp downKeyState, KEY_STATE_DOWN
+    jne lb_space_key
+
+    inc edx
+    jmp lb_update
+
+lb_space_key:
+    cmp spaceKeyState, KEY_STATE_DOWN
+    jne lb_update
+
+    ; nextX, nextY 업데이트
+    mov [ebp - 4], ebx
+    mov [ebp - 8], edx
+
+    ; -------------------------------------
+
+lb_update:
+    ; 블럭 그리기
+    xor eax, eax
+    mov al, BOARD_STATE_BLOCK
+    push eax    ; BOARD_STATE
+    movzx eax, block
+    push eax    ; block
+    push edx    ; nextY
+    push ebx    ; nextX
+    call tryBlockToBoard
+
+    ; 블럭 그리기 실패했으면, 고정
+    ; ----------------------------------------
+
+    test eax, eax
+    jz lb_fixed
+
+    ; blockX = nextX
+    mov [blockX], bl
+
+    ; blockY = nextY
+    mov [blockY], dl
+
+    jmp lb_update_game_return
+
+    ; ----------------------------------------
+
+lb_fixed:
+    cmp leftKeyState, KEY_STATE_DOWN
+    je lb_update_game_return
+
+    cmp rightKeyState, KEY_STATE_DOWN
+    je lb_update_game_return
+
+    ; 블럭 고정 시키기
+    push BOARD_STATE_FIXED
+    xor eax, eax
+    mov al, block
+    push eax
+    mov al, blockY
+    push eax
+    mov al, blockX
+    push eax
+    call TryBlockToBoard
+
+    mov blockX, 3
+    mov blockY, 2
 
 lb_update_game_return:
     ; 에필로그
+    pop edi
+    pop esi
+    pop edx
+    pop ebx
     mov esp, ebp
     pop ebp
     ret
