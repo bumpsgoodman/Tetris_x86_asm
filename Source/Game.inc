@@ -255,7 +255,7 @@ lb_up_key:
 
     ; rotate가 실패했으면 바로 업데이트로 점프
     test eax, eax
-    jnz lb_update
+    jz lb_update
 
     ; rotate가 성공했으면 위치 업데이트
     movzx ebx, blockX
@@ -346,6 +346,10 @@ lb_fixed:
 lb_update_cur_offsets:
     movsb
     loop lb_update_cur_offsets
+
+    ; 회전수 초기화
+    xor eax, eax
+    mov rotationCount, al
 
 lb_update_game_return:
     ; 에필로그
@@ -599,11 +603,12 @@ rotate:
     mov [ebp - 28], eax
 
     mov ecx, 5
+    mov [ebp - 20], ecx
     
     ; testTablePtr(esi) 구하기
     movzx eax, [block]  ; eax = block
-    cmp block, 1
-    je lb_i_test
+    test eax, eax
+    jz lb_i_test
 
     lea esi, JLSZT_TEST     ; esi = JLSZT_TEST
     mov [ebp - 40], esi     ; esi 백업
@@ -615,8 +620,6 @@ lb_i_test:
     mov [ebp - 40], esi     ; esi 백업
 
 lb_test_loop0:
-    mov [ebp - 20], ecx ; ecx 백업
-
     mov esi, [ebp - 40]
     movzx eax, rotationCount    ; eax = rotationCount
     mov ebx, 2
@@ -627,11 +630,12 @@ lb_test_loop0:
     xor ebx, ebx
     xor edx, edx
     mov bl, [esi]       ; bl = testTablePtr[i][rotatinoCount].x => testX
-    mov [ebp - 12], ebx
-    mov bl, [esi + 1]   ; dl = testTablePtr[i][rotatinoCount].y => testY
-    mov [ebp - 16], ebx
+    mov [ebp - 12], bl
+    mov bl, [esi + 1]   ; bl = testTablePtr[i][rotatinoCount].y => testY
+    mov [ebp - 16], bl
 
     ; testTablePtr 다음 인덱스로 이동
+    mov esi, [ebp - 40]
     add esi, 8
     mov [ebp - 40], esi
 
@@ -640,9 +644,8 @@ lb_test_loop0:
     mov ecx, NUM_OFFSETS
     xor eax, eax
     mov [ebp - 24], eax       ; count = 0
+    lea esi, curOffsets     ; esi = &curOffsets[i]
     lb_test_loop1:
-        lea esi, curOffsets     ; esi = &curOffsets[i]
-
         mov bl, [esi]           ; bl = curOffsets[i].x
         neg bl                  ; bl = -curOffsets[i].x
 
@@ -655,15 +658,20 @@ lb_test_loop0:
         mov [ebp - 35], bl
         mov [ebp - 36], dl
 
-        ; -curOffsets[i].x * 0
         xor eax, eax
-        mul bl
+        xor ebx, ebx
+
+        ; -curOffsets[i].x * 0
+        mov al, [ebp - 35]  ; al = -curOffsets[i].x
+        xor ebx, ebx
+        imul eax, ebx
         push eax    ; 연산 결과 백업
 
         ; -curOffsets[i].y * 1
+        xor eax, eax
         mov al, [ebp - 36]   ; al = -curOffsets[i].y
-        mov bl, 1
-        mul bl
+        mov ebx, 1
+        imul eax, ebx
 
         ; -curOffsets[i].x * 0 + -curOffsets[i].y * 1
         pop ebx
@@ -672,15 +680,17 @@ lb_test_loop0:
         mov [edi], al   ; resultOffsets[i].x = 회전된 offsetX
 
         ; -curOffsets[i].x * -1
+        xor eax, eax
         mov al, [ebp - 35]  ; al = -curOffsets[i].x
-        mov bl, -1
-        mul bl
+        mov ebx, -1
+        imul eax, ebx
         push eax    ; 연산 결과 백업
 
         ; -curOffsets[i].y * 0
+        xor eax, eax
         mov al, [ebp - 36]   ; al = -curOffsets[i].y
         xor ebx, ebx
-        mul bl
+        imul eax, ebx
 
         ; -curOffsets[i].x * 0 + -curOffsets[i].y * 1
         pop ebx
@@ -691,12 +701,14 @@ lb_test_loop0:
         ; eax = blockX + result_offset[i].x + test_pos.x
         movzx eax, blockX
         add al, [edi]
-        add eax, [ebp - 12]
+        add al, [ebp - 12]
 
         ; ebx = blockY + result_offset[i].y + test_pos.y
         movzx ebx, blockY
         add bl, [edi + 1]
-        add ebx, [ebp - 16]
+        add bl, [ebp - 16]
+
+        add edi, 2
 
         ; 회전 이후 범위를 벗어나거나
         ; 해당 위치에 이미 블럭이 있으면 회전 실패
@@ -706,8 +718,6 @@ lb_test_loop0:
 
         test eax, eax
         jz exit_lb_test_loop1
-
-        add edi, 2
 
         ; ++count
         mov eax, [ebp - 24]
@@ -725,6 +735,7 @@ exit_lb_test_loop1:
 
     mov ecx, [ebp - 20]
     dec ecx
+    mov [ebp - 20], ecx ; ecx 백업
     test ecx, ecx
     jnz lb_test_loop0
 
@@ -741,14 +752,14 @@ lb_update_rotate_offsets:
 
     ; x 업데이트
     movzx eax, blockX   ; eax = blockX
-    mov ebx, [ebp - 12] ; ebx = testX
-    add eax, ebx        ; eax = blockX + testX
+    mov bl, [ebp - 12] ; ebx = testX
+    add al, bl        ; eax = blockX + testX
     mov blockX, al
 
     ; y 업데이트
     movzx eax, blockY   ; eax = blockY
-    mov ebx, [ebp - 16] ; ebx = testY
-    add eax, ebx        ; eax = blockY + testY
+    mov bl, [ebp - 16] ; ebx = testY
+    add al, bl        ; eax = blockY + testY
     mov blockY, al
 
     ; rotatinoCount = (rotationCount + 1) % 4
@@ -756,7 +767,7 @@ lb_update_rotate_offsets:
     inc eax
     mov bl, 4
     div bl
-    mov [rotationCount], dl    ; rotationCount 업데이트
+    mov [rotationCount], ah    ; rotationCount 업데이트
 
     mov eax, 1
     mov [ebp - 28], eax   ; result = 1
