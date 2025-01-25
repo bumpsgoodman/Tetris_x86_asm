@@ -11,13 +11,25 @@ BOARD_STATE_SHADOW  EQU 3
 NUM_BLOCK_SHAPES    EQU 7
 
 NUM_OFFSETS     EQU 3
-BLOCK_OFFSETS   DB    -1, 0,     1,  0,      2,  0      ; I
-                DB    -1, 0,     0, -1,     -1, -1      ; O
-                DB    -1, 0,    -1, -1,      1,  0      ; L
-                DB    -1, 0,     1,  0,      1, -1      ; J
-                DB    -1, 0,     1,  0,      0, -1      ; T
-                DB    -1, 0,     0, -1,      1, -1      ; S
-                DB     1, 0,     0, -1,     -1, -1      ; Z
+BLOCK_OFFSETS   DB    -1,  0,     1,  0,      2,  0      ; I
+                DB    -1,  0,     0, -1,     -1, -1      ; O
+                DB    -1,  0,    -1, -1,      1,  0      ; L
+                DB    -1,  0,     1,  0,      1, -1      ; J
+                DB    -1,  0,     1,  0,      0, -1      ; T
+                DB    -1,  0,     0, -1,      1, -1      ; S
+                DB     1,  0,     0, -1,     -1, -1      ; Z
+
+JLSZT_TEST      DB     0,  0,     0,  0,      0,  0,      0,  0
+                DB    -1,  0,     1,  0,      1,  0,     -1,  0
+                DB    -1,  1,     1, -1,      1,  1,     -1, -1
+                DB     0, -2,     0,  2,      0, -2,      0,  2
+                DB    -1, -2,     1,  2,      1, -2,     -1,  2
+
+I_TEST          DB     0,  0,     0,  0,      0,  0,      0,  0
+                DB    -2,  0,    -1,  0,      2,  0,      1,  0
+                DB     1,  0,     2,  0,     -1,  0,     -2,  0
+                DB    -2, -1,    -1,  2,      2,  1,      1, -2
+                DB     1,  2,     2, -1,     -1, -2,     -2,  1
 
 shapeFlag           DB 0 ; getNextBlockInBundle 전용 변수
 
@@ -32,6 +44,9 @@ blockY              DB ?
 
 shadowX             DB ?
 shadowY             DB ?
+
+curOffsets          DB 6 DUP (?)    ; NUM_OFFSETS * 2 (x, y)
+rotationCount       DB 0
 
 KEY_STATE_UP        EQU     0
 KEY_STATE_DOWN      EQU     1
@@ -67,6 +82,7 @@ InitGame:
     mov ebp, esp
     push ebx
     push edx
+    push esi
     push edi
 
     ; 블럭 번들 생성
@@ -89,6 +105,21 @@ lb_make_block_bundle_loop:
 
     call setNextBlockPos
 
+    ; 오프셋 초기화
+    ; esi = 블럭 오프셋
+    lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
+    movzx ebx, block        ; ebx = block
+    mov eax, 6
+    imul eax, ebx           ; eax = BLOCK_OFFSETS[block]
+    add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
+
+    lea edi, curOffsets     ; edi = curOffsets
+
+    mov ecx, 6
+lb_init_cur_offsets:
+    movsb
+    loop lb_init_cur_offsets
+
     movzx eax, block
     movzx ebx, blockX
     movzx edx, blockY
@@ -101,6 +132,7 @@ lb_make_block_bundle_loop:
 lb_init_game_return:
     ; 에필로그
     pop edi
+    pop esi
     pop edx
     pop ebx
     mov esp, ebp
@@ -135,7 +167,7 @@ UpdateGame:
     movzx eax, blockY
     mov [ebp - 8], eax
 
-    ; 잔상 제거하기
+    ; 그림자 그리기
     ; -------------------------------------
 
     xor eax, eax
@@ -215,6 +247,20 @@ lb_up_key:
     cmp upKeyState, KEY_STATE_DOWN
     jne lb_down_key
 
+    movzx eax, [block]
+    cmp eax, 1          ; O 블럭이면 회전 x
+    je lb_update
+
+    call rotate
+
+    ; rotate가 실패했으면 바로 업데이트로 점프
+    test eax, eax
+    jnz lb_update
+
+    ; rotate가 성공했으면 위치 업데이트
+    movzx ebx, blockX
+    movzx edx, blockY
+
     jmp lb_update
 
 lb_down_key:
@@ -285,6 +331,21 @@ lb_fixed:
     mov [block], al
 
     call setNextBlockPos
+
+    ; 오프셋 업데이트
+    ; esi = 블럭 오프셋
+    lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
+    movzx ebx, block        ; ebx = block
+    mov eax, 6
+    imul eax, ebx           ; eax = BLOCK_OFFSETS[block]
+    add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
+
+    lea edi, curOffsets     ; edi = curOffsets
+
+    mov ecx, 6
+lb_update_cur_offsets:
+    movsb
+    loop lb_update_cur_offsets
 
 lb_update_game_return:
     ; 에필로그
@@ -503,6 +564,215 @@ lb_set_next_block_pos_return:
     pop ebp
     ret
 
+; TODO: 회전 코드 전체적으로 검토
+;=========================================
+; 함수 이름: rotate
+; 설명: 이 함수는 블럭을 회전하는 함수입니다.
+; 매개변수: 없음
+; 반환값: 회전에 성공했다면 1, 실패했다면 0 반환
+;=========================================
+rotate:
+    ; 지역 변수:
+    ;   - tempX (ebp - 4)     - unused
+    ;   - tempY (ebp - 8)     - unused
+    ;   - testX (ebp - 12)
+    ;   - testY (ebp - 16)
+    ;   - ecxBackup (ebp - 20)
+    ;   - count (ebp - 24)
+    ;   - result (ebp - 28)
+    ;   - resultOffsets (ebp - 34)
+    ;   - temp0 (ebp - 35)
+    ;   - temp1 (ebp - 36)
+    ;   - esiBackup (ebp - 40)
+
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    sub esp, 40
+    push ebx
+    push edx
+    push esi
+    push edi
+
+    ; result
+    xor eax, eax
+    mov [ebp - 28], eax
+
+    mov ecx, 5
+    
+    ; testTablePtr(esi) 구하기
+    movzx eax, [block]  ; eax = block
+    cmp block, 1
+    je lb_i_test
+
+    lea esi, JLSZT_TEST     ; esi = JLSZT_TEST
+    mov [ebp - 40], esi     ; esi 백업
+    
+    jmp lb_test_loop0
+
+lb_i_test:
+    lea esi, I_TEST         ; esi = I_TEST
+    mov [ebp - 40], esi     ; esi 백업
+
+lb_test_loop0:
+    mov [ebp - 20], ecx ; ecx 백업
+
+    mov esi, [ebp - 40]
+    movzx eax, rotationCount    ; eax = rotationCount
+    mov ebx, 2
+    imul eax, ebx
+    add esi, eax                ; esi = &testTablePtr[i][rotatinoCount]
+
+    ; testX, testY 구하기
+    xor ebx, ebx
+    xor edx, edx
+    mov bl, [esi]       ; bl = testTablePtr[i][rotatinoCount].x => testX
+    mov [ebp - 12], ebx
+    mov bl, [esi + 1]   ; dl = testTablePtr[i][rotatinoCount].y => testY
+    mov [ebp - 16], ebx
+
+    ; testTablePtr 다음 인덱스로 이동
+    add esi, 8
+    mov [ebp - 40], esi
+
+    lea edi, [ebp - 34]
+
+    mov ecx, NUM_OFFSETS
+    xor eax, eax
+    mov [ebp - 24], eax       ; count = 0
+    lb_test_loop1:
+        lea esi, curOffsets     ; esi = &curOffsets[i]
+
+        mov bl, [esi]           ; bl = curOffsets[i].x
+        neg bl                  ; bl = -curOffsets[i].x
+
+        mov dl, [esi + 1]       ; dl = curOffsets[i].y
+        neg dl                  ; dl = -curOffsets[i].y
+
+        add esi, 2
+
+        ; -curOffsets[i].x, y 임시 저장
+        mov [ebp - 35], bl
+        mov [ebp - 36], dl
+
+        ; -curOffsets[i].x * 0
+        xor eax, eax
+        mul bl
+        push eax    ; 연산 결과 백업
+
+        ; -curOffsets[i].y * 1
+        mov al, [ebp - 36]   ; al = -curOffsets[i].y
+        mov bl, 1
+        mul bl
+
+        ; -curOffsets[i].x * 0 + -curOffsets[i].y * 1
+        pop ebx
+        add al, bl
+
+        mov [edi], al   ; resultOffsets[i].x = 회전된 offsetX
+
+        ; -curOffsets[i].x * -1
+        mov al, [ebp - 35]  ; al = -curOffsets[i].x
+        mov bl, -1
+        mul bl
+        push eax    ; 연산 결과 백업
+
+        ; -curOffsets[i].y * 0
+        mov al, [ebp - 36]   ; al = -curOffsets[i].y
+        xor ebx, ebx
+        mul bl
+
+        ; -curOffsets[i].x * 0 + -curOffsets[i].y * 1
+        pop ebx
+        add al, bl
+
+        mov [edi + 1], al   ; resultOffsets[i].y = 회전된 offsetY
+
+        ; eax = blockX + result_offset[i].x + test_pos.x
+        movzx eax, blockX
+        add al, [edi]
+        add eax, [ebp - 12]
+
+        ; ebx = blockY + result_offset[i].y + test_pos.y
+        movzx ebx, blockY
+        add bl, [edi + 1]
+        add ebx, [ebp - 16]
+
+        ; 회전 이후 범위를 벗어나거나
+        ; 해당 위치에 이미 블럭이 있으면 회전 실패
+        push ebx
+        push eax
+        call isValidPos
+
+        test eax, eax
+        jz exit_lb_test_loop1
+
+        add edi, 2
+
+        ; ++count
+        mov eax, [ebp - 24]
+        inc eax
+        mov [ebp - 24], eax
+
+        dec ecx
+        test ecx, ecx
+        jnz lb_test_loop1
+
+exit_lb_test_loop1:
+    mov eax, [ebp - 24] ; eax = count
+    cmp eax, NUM_OFFSETS
+    je lb_rotate_success
+
+    mov ecx, [ebp - 20]
+    dec ecx
+    test ecx, ecx
+    jnz lb_test_loop0
+
+    jmp lb_rotate_return
+
+lb_rotate_success:
+    ; offsets 업데이트
+    lea esi, [ebp - 34]     ; esi = &resultOffsets
+    lea edi, [curOffsets]   ; edi = &curOffsets
+    mov ecx, 6
+lb_update_rotate_offsets:
+    movsb
+    loop lb_update_rotate_offsets
+
+    ; x 업데이트
+    movzx eax, blockX   ; eax = blockX
+    mov ebx, [ebp - 12] ; ebx = testX
+    add eax, ebx        ; eax = blockX + testX
+    mov blockX, al
+
+    ; y 업데이트
+    movzx eax, blockY   ; eax = blockY
+    mov ebx, [ebp - 16] ; ebx = testY
+    add eax, ebx        ; eax = blockY + testY
+    mov blockY, al
+
+    ; rotatinoCount = (rotationCount + 1) % 4
+    movzx eax, [rotationCount]  ; eax = rotatinoCount
+    inc eax
+    mov bl, 4
+    div bl
+    mov [rotationCount], dl    ; rotationCount 업데이트
+
+    mov eax, 1
+    mov [ebp - 28], eax   ; result = 1
+
+lb_rotate_return:
+    mov eax, [ebp - 28] ; eax = result
+
+    ; 에필로그
+    pop edi
+    pop esi
+    pop edx
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret
+
 ;=========================================
 ; 함수 이름: removeLine
 ; 설명: 이 함수는 지워져야 할 라인을 지웁니다.
@@ -525,12 +795,13 @@ removeLine:
     mov dl, -1
 
     ; esi = 블럭 오프셋
-    lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
-    mov ebx, [ebp + 16]     ; ebx = block
-    mov eax, 6
-    imul eax, ebx           ; eax = BLOCK_OFFSETS[block]
-    add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
-    inc esi                 ; esi = &BLOCK_OFFSETS[block][1] => y offset
+    lea esi, curOffsets
+    ;lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
+    ;mov ebx, [ebp + 16]     ; ebx = block
+    ;mov eax, 6
+    ;imul eax, ebx           ; eax = BLOCK_OFFSETS[block]
+    ;add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
+    ;inc esi                 ; esi = &BLOCK_OFFSETS[block][1] => y offset
 
     mov ecx, NUM_OFFSETS
 lb_find_max_y:
@@ -612,7 +883,7 @@ lb_remove_line_return:
 ; 반환값: 없음
 ;=========================================
 removeLineHelper:
-; 프롤로그
+    ; 프롤로그
     push ebp
     mov ebp, esp
     push ebx
