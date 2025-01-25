@@ -368,7 +368,7 @@ lb_calculate_actual_block_pos:
     call GotoXY
 
     lea ebx, SEQ_ERASE_CHAR2
-    push 5                  ; TODO: 길이 하드 코딩 말고, 변수 따로 만들기
+    push 5
     push ebx
     call Print
 
@@ -385,7 +385,7 @@ lb_calculate_actual_block_pos:
     call GotoXY
 
     lea ebx, SEQ_ERASE_CHAR2
-    push 5                  ; TODO: 길이 하드 코딩 말고, 변수 따로 만들기
+    push 5
     push ebx
     call Print
 

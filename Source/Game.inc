@@ -65,6 +65,8 @@ InitGame:
     ; 프롤로그
     push ebp
     mov ebp, esp
+    push ebx
+    push edx
     push edi
 
     ; 블럭 번들 생성
@@ -85,19 +87,22 @@ lb_make_block_bundle_loop:
     call getNextBlock
     mov [block], al
 
-    mov [blockX], 5
-    mov [blockY], 6
+    call setNextBlockPos
 
     movzx eax, block
+    movzx ebx, blockX
+    movzx edx, blockY
     push BOARD_STATE_BLOCK
     push eax
-    push 6
-    push 5
+    push edx
+    push ebx
     call tryBlockToBoard
 
 lb_init_game_return:
     ; 에필로그
     pop edi
+    pop edx
+    pop ebx
     mov esp, ebp
     pop ebp
     ret
@@ -274,11 +279,12 @@ lb_fixed:
     push eax
     call TryBlockToBoard
 
-    mov [blockX], 3
-    mov [blockY], 2
+    call removeLine
 
     call getNextBlock
     mov [block], al
+
+    call setNextBlockPos
 
 lb_update_game_return:
     ; 에필로그
@@ -456,3 +462,204 @@ lb_get_next_block_return:
     mov esp, ebp
     pop ebp
     ret
+
+;=========================================
+; 함수 이름: setNextBlockPos
+; 설명: 이 함수는 다음 블럭의 위치를 세팅해주는 함수입니다.
+; 매개변수: 없음
+; 반환값: 없음
+;=========================================
+setNextBlockPos:
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    push ebx
+
+    ; eax = BOARD_COLS / 2
+    mov eax, BOARD_COLS
+    mov ebx, 2
+    div bl
+
+    ; blockX = BOARD_COLS / 2 - 1
+    dec eax
+    mov [blockX], al
+
+    xor ebx, ebx    ; ebx = blockY = 0
+    mov al, [block]
+    cmp al, 1
+    jle lb_set_next_block_pos
+
+    ; y = 1
+    inc bl
+
+lb_set_next_block_pos:
+    ; blockY = bl
+    mov [blockY], bl
+
+lb_set_next_block_pos_return:
+    ; 에필로그
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret
+
+;=========================================
+; 함수 이름: removeLine
+; 설명: 이 함수는 지워져야 할 라인을 지웁니다.
+; 매개변수: 없음
+; 반환값: 없음
+;=========================================
+removeLine:
+    ; 지역 변수:
+    ;   - maxY (ebp - 4)
+
+    ; 프롤로그
+    push ebp
+    mov ebp, esp
+    sub esp, 4
+    push ebx
+    push edx
+    push esi
+
+    ; dl = maxY
+    mov dl, -1
+
+    ; esi = 블럭 오프셋
+    lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
+    mov ebx, [ebp + 16]     ; ebx = block
+    mov eax, 6
+    imul eax, ebx           ; eax = BLOCK_OFFSETS[block]
+    add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
+    inc esi                 ; esi = &BLOCK_OFFSETS[block][1] => y offset
+
+    mov ecx, NUM_OFFSETS
+lb_find_max_y:
+    mov al, [blockY]        ; al = blockY
+    add al, [esi]           ; al = blockY + offsetY
+    cmp al, dl              ; maxY = max(maxY, blockY + offsetY)
+    jle lb_no_greater_max_y
+
+    mov dl, al
+
+lb_no_greater_max_y:
+    add esi, 2              ; 다음 오프셋으로 이동
+    loop lb_find_max_y
+
+    ; maxY = edx
+    xor dh, dh
+    ;mov [ebp - 4], edx
+
+    mov ecx, 4
+lb_remove_line:
+    push ecx
+
+    ; y가 1 이하로 떨어지면 종료
+    cmp dl, 1
+    jle lb_check_remove_line_cond
+
+    lea esi, board  ; esi = &board[y]
+    mov eax, BOARD_COLS
+    imul eax, edx
+    add esi, eax
+
+    mov ecx, BOARD_COLS     ; ecx = BOARD_COLS
+    xor ebx, ebx            ; ebx = count = 0
+    lb_count_loop:
+        mov al, [esi]       ; al = board[y][x]
+        cmp al, BOARD_STATE_FIXED
+        jne lb_no_fixed_block
+
+        inc ebx     ; ++count
+
+    lb_no_fixed_block:
+        inc esi
+        dec ecx
+        test ecx, ecx
+        jnz lb_count_loop
+
+    cmp ebx, BOARD_COLS     ; 해당 행이 전부 채워졌다면
+    jne lb_no_remove_line
+
+    push edx
+    call removeLineHelper
+
+    jmp lb_check_remove_line_cond
+
+lb_no_remove_line:
+    dec dl  ; y 감소
+
+lb_check_remove_line_cond:
+    pop ecx
+    dec ecx
+    test ecx, ecx
+    jnz lb_remove_line
+
+lb_remove_line_return:
+    ; 에필로그
+    pop esi
+    pop edx
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret
+
+;=========================================
+; 함수 이름: removeLineHelper
+; 설명: 이 함수는 removeLine 헬퍼 함수입니다.
+;       실제로 board에서 라인을 지웁니다.
+; 매개변수:
+;   - y: y 좌표 (ebp + 8)
+; 반환값: 없음
+;=========================================
+removeLineHelper:
+; 프롤로그
+    push ebp
+    mov ebp, esp
+    push ebx
+    push edx
+    push esi
+    push edi
+
+    mov ebx, [ebp + 8]  ; ebx = y
+    mov ecx, ebx        ; ecx = y
+    dec ecx
+
+    ; edi = &board[y]
+    lea edi, board
+    mov eax, BOARD_COLS
+    imul eax, ebx
+    add edi, eax
+
+    ; esi = &board[y - 1]
+    mov esi, edi
+    sub esi, BOARD_COLS
+
+lb_copy_line0:
+    push ecx
+
+    mov ecx, BOARD_COLS
+    lb_copy_line1:
+        mov al, [esi]   ; al = board[y - 1][i]
+        mov [edi], al   ; board[y][i] = board[y - 1][i]
+
+        inc esi
+        inc edi
+
+        loop lb_copy_line1
+
+    sub esi, BOARD_COLS
+    mov edi, esi
+    sub esi, BOARD_COLS
+
+    pop ecx
+    loop lb_copy_line0
+
+lb_remove_line_helper_return:
+    ; 에필로그
+    pop edi
+    pop esi
+    pop edx
+    pop ebx
+    mov esp, ebp
+    pop ebp
+    ret 4
