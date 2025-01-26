@@ -568,7 +568,6 @@ lb_set_next_block_pos_return:
     pop ebp
     ret
 
-; TODO: 회전 코드 전체적으로 검토
 ;=========================================
 ; 함수 이름: rotate
 ; 설명: 이 함수는 블럭을 회전하는 함수입니다.
@@ -807,6 +806,7 @@ removeLine:
 
     ; esi = 블럭 오프셋
     lea esi, curOffsets
+    inc esi
     ;lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
     ;mov ebx, [ebp + 16]     ; ebx = block
     ;mov eax, 6
