@@ -554,7 +554,7 @@ lb_draw_game_return:
     ret
 
 ;=========================================
-; 함수 이름: IsRunning
+; 함수 이름: IsRunningGame
 ; 설명: 이 함수는 게임이 종료되었는지 알려주는 함수입니다.
 ; 매개변수: 없음
 ; 반환값: 게임 오버라면 1, 아니라면 0 반환
@@ -564,8 +564,31 @@ IsRunningGame:
     push ebp
     mov ebp, esp
 
+    lea esi, board          ; esi = &board
+
+    ; esi = &board[2][0] = board + y * BOARD_COLS
+    mov eax, BOARD_COLS
+    mov ebx, 2
+    imul eax, ebx
+    add esi, eax
+    
+    mov ecx, BOARD_COLS
+lb_test_gameover_loop:
+    mov eax, [esi]
+    cmp eax, BOARD_STATE_FIXED
+    je lb_is_gameover
+
+    inc esi
+
+    loop lb_test_gameover_loop
+
+    mov eax, 1
+    jmp lb_is_running_game_return
+
+lb_is_gameover:
+    xor eax, eax
+
 lb_is_running_game_return:
-    xor eax, eax ; 임시적으로 0 반환
 
     ; 에필로그
     mov esp, ebp

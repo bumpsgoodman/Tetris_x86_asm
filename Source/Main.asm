@@ -45,16 +45,13 @@ main:
     call InitConsole    ; 게임 시작 전, 콘솔 초기화
     call InitGame       ; 게임 초기화
 
-    xor ebx, ebx
-
     ; 프레임 시작 시간
     call GetTickCount@0
     mov start_time, eax
 lb_game_loop:
-    inc ebx
     call IsRunningGame  ; 게임 오버인지 확인하기
     test eax, eax
-    jnz lb_main_return       ; 테스트용으로 false 반환 시 루프 도는 형태로 진행
+    jz lb_main_return
 
     call DrawGame       ; 게임 그리기
 
