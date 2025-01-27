@@ -12,7 +12,8 @@ NUM_BLOCK_SHAPES    EQU 7
 
 NUM_OFFSETS     EQU 3
 BLOCK_OFFSETS   DB    -1,  0,     1,  0,      2,  0      ; I
-                DB    -1,  0,     0, -1,     -1, -1      ; O
+                ;DB    -1,  0,     0, -1,     -1, -1      ; O
+                DB     1,  0,     0, 1,       1,  1      ; O
                 DB    -1,  0,    -1, -1,      1,  0      ; L
                 DB    -1,  0,     1,  0,      1, -1      ; J
                 DB    -1,  0,     1,  0,      0, -1      ; T
@@ -46,7 +47,7 @@ shadowX             DB ?
 shadowY             DB ?
 
 curOffsets          DB 6 DUP (?)    ; NUM_OFFSETS * 2 (x, y)
-shadowOffsets    DB 6 DUP (?)    ; NUM_OFFSETS * 2 (x, y)
+shadowOffsets       DB 6 DUP (?)    ; NUM_OFFSETS * 2 (x, y)
 rotationCount       DB 0
 
 KEY_STATE_UP        EQU     0
@@ -333,6 +334,40 @@ lb_space_key:
     cmp spaceKeyState, KEY_STATE_DOWN
     jne lb_update
 
+    mov ebx, [ebp - 4] ; ebx = nextX
+    mov edx, [ebp - 8] ; edx = nextY
+
+lb_space_key_loop:
+    lea esi, curOffsets
+    push esi            ; pOffsets
+    xor eax, eax
+    mov al, BOARD_STATE_SPACE
+    push eax            ; state
+    movzx eax, block
+    push eax            ; blockPtr
+    push edx            ; y
+    push ebx            ; x
+    call tryBlockToBoard
+
+    inc edx
+
+    lea esi, curOffsets
+    push esi            ; pOffsets
+    mov al, BOARD_STATE_BLOCK
+    push eax            ; state
+    movzx eax, block
+    push eax            ; blockPtr
+    push edx            ; y
+    push ebx            ; x
+    call tryBlockToBoard
+
+    test eax, eax
+    jnz lb_space_key_loop
+
+    dec edx
+    mov blockY, dl
+    inc edx
+
     ; -------------------------------------
 
     ; nextX, nextY 업데이트
@@ -386,7 +421,7 @@ lb_fixed:
     push eax
     mov al, [blockX]
     push eax
-    call TryBlockToBoard
+    call tryBlockToBoard
 
     call removeLine
 
