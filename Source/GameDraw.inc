@@ -12,6 +12,12 @@ GAME_SECTION_TITLE_LENGTH   DB  0
 NEXT_SECTION_TITLE          DB  'NEXT'
 NEXT_SECTION_TITLE_LENGTH   DB  4
 
+KEY_LEFT_HELP_TEXT          DB  'LEFT ARROW: MOVE LEFT', 0
+KEY_RIGHT_HELP_TEXT         DB  'RIGHT ARROW: MOVE RIGHT', 0
+KEY_DOWN_HELP_TEXT          DB  'DOWN ARROW: SOFT DROP', 0
+KEY_SPACEBAR_HELP_TEXT      DB  'SPACE BAR: HARD DROP', 0
+KEY_UP_HELP_TEXT            DB  'UP ARROW: ROTATE CLOCKWISE', 0
+
 .code
 
 ;=========================================
@@ -64,11 +70,71 @@ DrawHelpSection:
     lea edx, HELP_SECTION_TITLE
     push ebx    ; titleLength
     push edx    ; pTitle
-    push 16     ; bottomRightY
+    push 17     ; bottomRightY
     push 30     ; bottomRightX
     push 9      ; topLeftY
     push 1      ; topLeftX
     call drawSection
+
+    push 0      ; blue
+    push 255    ; green
+    push 0      ; red
+    call SetTextColor
+
+    push 12      ; blue
+    push 12      ; green
+    push 12      ; red
+    call SetBackColor
+
+    ; 왼쪽 방향키
+    push 11
+    push 3
+    call GotoXY
+
+    lea edx, KEY_LEFT_HELP_TEXT
+    push 22
+    push edx
+    call Print
+
+    ; 오른쪽 방향키
+    push 12
+    push 3
+    call GotoXY
+
+    lea edx, KEY_RIGHT_HELP_TEXT
+    push 24
+    push edx
+    call Print
+
+    ; 아래쪽 방향키
+    push 13
+    push 3
+    call GotoXY
+
+    lea edx, KEY_DOWN_HELP_TEXT
+    push 22
+    push edx
+    call Print
+
+    ; 스페이스바
+    push 14
+    push 3
+    call GotoXY
+
+    lea edx, KEY_SPACEBAR_HELP_TEXT
+    push 21
+    push edx
+    call Print
+
+    ; 회전
+    push 15
+    push 3
+    call GotoXY
+
+    lea edx, KEY_UP_HELP_TEXT
+    push 27
+    push edx
+    call Print
 
 lb_help_status_section_return:
     ; 에필로그
