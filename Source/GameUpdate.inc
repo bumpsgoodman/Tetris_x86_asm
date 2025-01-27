@@ -240,7 +240,15 @@ isValidPos:
     mov bl, [esi]              ; bl = board[y][x]
     mov dl, BOARD_STATE_FIXED
     cmp bl, dl
-    je lb_is_valid_pos_return
+    jle lb_is_valid_pos_test2
+
+    jmp lb_is_valid_pos
+
+    lb_is_valid_pos_test2:
+        cmp bl, BOARD_STATE_BLOCK
+        jg lb_is_valid_pos_return
+
+lb_is_valid_pos:
 
     inc eax
 

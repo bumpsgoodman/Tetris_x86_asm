@@ -28,6 +28,10 @@ NEXT_BLOCK_OFFSETS      DB    -1,  0,     1,  0,      2,  0      ; I
                         DB    -1,  0,     0, -1,      1, -1      ; S
                         DB     1,  0,     0, -1,     -1, -1      ; Z
 
+BLOCK_COLOR_R           DB  8,      255,    231,    0,      163,    8,      255
+BLOCK_COLOR_G           DB  255,    255,    154,    0,      18,     255,    0
+BLOCK_COLOR_B           DB  255,    0,      28,     255,    244,    1,      0
+
 .code
 
 ;=========================================
@@ -231,7 +235,7 @@ DrawGameSection:
     lea edx, GAME_SECTION_TITLE
     push ebx    ; titleLength
     push edx    ; pTitle
-    push 24     ; bottomRightY
+    push 22     ; bottomRightY
     push 52     ; bottomRightX
     push 1      ; topLeftY
     push 31     ; topLeftX
@@ -329,8 +333,11 @@ DrawBoard:
     mov [ebp - 8], ebx      ; y = 2
 
     lea esi, board          ; esi = &board
+    add esi, BOARD_COLS
+    add esi, BOARD_COLS
 
     mov ecx, BOARD_ROWS     ; ecx = BOARD_ROWS
+    sub ecx, 2
 lb_draw_board_loop0:
     push ecx                ; ecx 백업
     mov [ebp - 12], ecx     ; row = 0
@@ -349,9 +356,70 @@ lb_draw_board_loop0:
 
         ; 블럭 상태 검사
         mov bl, [esi]
-        cmp bl, BOARD_STATE_SPACE
-        jne lb_test_state_block
+        cmp bl, BOARD_STATE_BLOCK
+        jg lb_test_state_fixed
+
+        push esi
+        xor eax, eax
+
+        ; 색상 결정 (BLUE)
+        lea esi, BLOCK_COLOR_B
+        add esi, ebx
+        mov al, [esi]
+        push eax         ; blue
+
+        ; 색상 결정 (GREEN)
+        lea esi, BLOCK_COLOR_G
+        add esi, ebx
+        mov al, [esi]
+        push eax         ; green
+
+        ; 색상 결정 (RED)
+        lea esi, BLOCK_COLOR_R
+        add esi, ebx
+        mov al, [esi]
+        push eax         ; red
+        call SetBackColor
+
+        pop esi
+
+        jmp lb_draw_state
+
+    lb_test_state_fixed:
+        cmp bl, BOARD_STATE_FIXED
+        jg lb_test_state_space
+
+        push esi
+        xor eax, eax
+        sub bl, 10
+
+        ; 색상 결정 (BLUE)
+        lea esi, BLOCK_COLOR_B
+        add esi, ebx
+        mov al, [esi]
+        push eax         ; blue
+
+        ; 색상 결정 (GREEN)
+        lea esi, BLOCK_COLOR_G
+        add esi, ebx
+        mov al, [esi]
+        push eax         ; green
+
+        ; 색상 결정 (RED)
+        lea esi, BLOCK_COLOR_R
+        add esi, ebx
+        mov al, [esi]
+        push eax         ; red
+        call SetBackColor
+
+        pop esi
+
+        jmp lb_draw_state
         
+    lb_test_state_space:
+        cmp bl, BOARD_STATE_SPACE
+        jne lb_test_state_shadow
+
         mov eax, [ebp - 12]     ; eax = row
         add eax, [ebp - 16]     ; eax = row + col
         mov ebx, 2
@@ -375,33 +443,11 @@ lb_draw_board_loop0:
 
         jmp lb_draw_state
 
-    lb_test_state_block:
-        cmp bl, BOARD_STATE_BLOCK
-        jne lb_test_state_fixed
-
-        push 0      ; blue
-        push 0      ; green
-        push 255    ; red
-        call SetBackColor
-
-        jmp lb_draw_state
-
-    lb_test_state_fixed:
-        cmp bl, BOARD_STATE_FIXED
-        jne lb_test_state_shadow
-
-        push 255    ; blue
-        push 0      ; green
-        push 0      ; red
-        call SetBackColor
-
-        jmp lb_draw_state
-
     lb_test_state_shadow:
         ; shadow까지 아닌 경우는 고려하지 않음
-        push 0      ; blue
-        push 255    ; green
-        push 0      ; red
+        push 130        ; blue
+        push 130        ; green
+        push 130        ; red
         call SetBackColor
 
     lb_draw_state:
@@ -469,12 +515,6 @@ DrawNextBlocks:
     push edx
     push esi
 
-    ; 배경색 지정
-    push 0    ; blue
-    push 255    ; green
-    push 255      ; red
-    call SetBackColor
-
     ; x = 60
     mov eax, 60
     mov [ebp - 4], eax
@@ -497,7 +537,36 @@ lb_draw_next_block:
     add esi, edx                    ; esi = &blockBundle[index]
 
     ; ebx = blockBundle[index]
+    xor ebx, ebx
     mov bl, [esi]
+
+    push esi
+    push edx
+    xor eax, eax
+
+    mov edx, [ebp - 12]
+
+    ; 색상 결정 (BLUE)
+    lea esi, BLOCK_COLOR_B
+    add esi, ebx
+    mov al, [esi]
+    push eax         ; blue
+
+    ; 색상 결정 (GREEN)
+    lea esi, BLOCK_COLOR_G
+    add esi, ebx
+    mov al, [esi]
+    push eax         ; green
+
+    ; 색상 결정 (RED)
+    lea esi, BLOCK_COLOR_R
+    add esi, ebx
+    mov al, [esi]
+    push eax         ; red
+    call SetBackColor
+
+    pop edx
+    pop esi
 
     ; esi = 블럭 오프셋
     lea esi, NEXT_BLOCK_OFFSETS  ; esi = &NEXT_BLOCK_OFFSETS
@@ -525,6 +594,8 @@ lb_calculate_actual_block_pos:
     push edx    ; actualY
     push eax    ; actualX
     call GotoXY
+
+    
 
     lea ebx, SEQ_ERASE_CHAR2
     push 5

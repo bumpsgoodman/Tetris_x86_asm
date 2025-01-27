@@ -5,16 +5,15 @@ EXTRN GetTickCount@0 : PROC
 BOARD_ROWS  EQU     22
 BOARD_COLS  EQU     10
 
-BOARD_STATE_SPACE   EQU 0
-BOARD_STATE_BLOCK   EQU 1
-BOARD_STATE_FIXED   EQU 2
-BOARD_STATE_SHADOW  EQU 3
+BOARD_STATE_SPACE   EQU 100
+BOARD_STATE_BLOCK   EQU 6
+BOARD_STATE_FIXED   EQU 16
+BOARD_STATE_SHADOW  EQU 101
 
 NUM_BLOCK_SHAPES    EQU 7
 
 NUM_OFFSETS     EQU 3
 BLOCK_OFFSETS   DB    -1,  0,     1,  0,      2,  0      ; I
-                ;DB    -1,  0,     0, -1,     -1, -1      ; O
                 DB     1,  0,     0, 1,       1,  1      ; O
                 DB    -1,  0,    -1, -1,      1,  0      ; L
                 DB    -1,  0,     1,  0,      1, -1      ; J
@@ -242,6 +241,8 @@ lb_shadow_loop:
 
     inc edx
 
+    xor eax, eax
+
     lea esi, shadowOffsets
     push esi    ; pOffsets
     mov al, BOARD_STATE_SHADOW
@@ -401,7 +402,7 @@ lb_space_key_loop:
 
     lea esi, curOffsets
     push esi            ; pOffsets
-    mov al, BOARD_STATE_BLOCK
+    movzx eax, [block]
     push eax            ; state
     movzx eax, block
     push eax            ; blockPtr
@@ -427,7 +428,7 @@ lb_update:
     lea esi, curOffsets
     push esi    ; pOffsets
     xor eax, eax
-    mov al, BOARD_STATE_BLOCK
+    movzx eax, [block]
     push eax    ; BOARD_STATE
     movzx eax, block
     push eax    ; block
@@ -461,8 +462,10 @@ lb_fixed:
     ; 블럭 고정 시키기
     lea esi, curOffsets
     push esi    ; pOffsets
-    push BOARD_STATE_FIXED
     xor eax, eax
+    mov al, [block]
+    add al, 10
+    push eax
     mov al, [block]
     push eax
     mov al, [blockY]
@@ -580,10 +583,12 @@ IsRunningGame:
     ; 프롤로그
     push ebp
     mov ebp, esp
+    push ebx
+    push esi
 
     lea esi, board          ; esi = &board
 
-    ; esi = &board[2][0] = board + y * BOARD_COLS
+    ; esi = &board[2][0] = board + 2 * BOARD_COLS
     mov eax, BOARD_COLS
     mov ebx, 2
     imul eax, ebx
@@ -591,23 +596,28 @@ IsRunningGame:
     
     mov ecx, BOARD_COLS
 lb_test_gameover_loop:
-    mov eax, [esi]
-    cmp eax, BOARD_STATE_FIXED
-    je lb_is_gameover
+    mov al, [esi]
+    cmp al, BOARD_STATE_BLOCK
+    jle lb_test_gameover_loop_next
 
+    cmp al, BOARD_STATE_FIXED
+    jle lb_gameover
+
+lb_test_gameover_loop_next:
     inc esi
 
     loop lb_test_gameover_loop
 
-    mov eax, 1
+    mov al, 1
     jmp lb_is_running_game_return
 
-lb_is_gameover:
+lb_gameover:
     xor eax, eax
 
 lb_is_running_game_return:
-
     ; 에필로그
+    pop esi
+    pop ebx
     mov esp, ebp
     pop ebp
     ret
@@ -627,7 +637,7 @@ getNextBlockInBundle:
     push edi
 
     lea edi, shapeFlag  ; edi = &shapeFlag
-    mov edx, [edi]      ; edx = shapeFlag
+    mov dl, [edi]      ; edx = shapeFlag
 lb_shape_flag_loop:
     ; shape 랜덤으로 결정하기
     push NUM_BLOCK_SHAPES
@@ -641,17 +651,17 @@ lb_shape_flag_loop:
     ; shapeFlag가 이미 설정되어 있으면 스킵
     ; => 이미 해당 shape이 존재함
     mov ecx, ebx
-    and ecx, edx    ; (1 << shape) & shapeFlag
+    and cl, dl    ; (1 << shape) & shapeFlag
     jnz lb_shape_flag_loop
 
-    or edx, ebx     ; edx = shapeFlag | shape
-    cmp edx, 07Fh   ; shapeFlag == 0b0111 1111 인지 검사
+    or dl, bl     ; dl = shapeFlag | shape
+    cmp dl, 07Fh   ; shapeFlag == 0b0111 1111 인지 검사
     jne lb_get_next_block_in_bundle_return
 
-    xor edx, edx    ; shapeFlag가 모두 활성화 되면 0으로 초기화
+    xor dl, dl    ; shapeFlag가 모두 활성화 되면 0으로 초기화
 
 lb_get_next_block_in_bundle_return:
-    mov [edi], edx  ; shapeFlag = shapeFlag | shape
+    mov [edi], dl  ; shapeFlag = shapeFlag | shape
 
     ; 에필로그
     pop edi
@@ -1022,7 +1032,11 @@ lb_remove_line:
     lb_count_loop:
         mov al, [esi]       ; al = board[y][x]
         cmp al, BOARD_STATE_FIXED
-        jne lb_no_fixed_block
+        jg lb_no_fixed_block
+
+        lb_no_fixed_block_test2:
+            cmp al, BOARD_STATE_BLOCK
+            jle lb_no_fixed_block
 
         inc ebx     ; ++count
 

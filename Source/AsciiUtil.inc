@@ -105,10 +105,13 @@ IntegerToAscii2:
     jnz lb_integer_to_ascii2
 
     mov al, '0'
+    mov edi, [ebp + 12]         ; edi = pOutBytes
     mov [edi], al  ; pOutBytes[0] = '0'
 
     mov eax, 1
     mov [ebp - 4], eax
+
+    jmp lb_integer_to_ascii2_return
 
 lb_integer_to_ascii2:
     mov eax, [ebp + 8]          ; eax = num
