@@ -12,11 +12,21 @@ GAME_SECTION_TITLE_LENGTH   DB  0
 NEXT_SECTION_TITLE          DB  'NEXT'
 NEXT_SECTION_TITLE_LENGTH   DB  4
 
+SCORE_TEXT                  DB  'SCORE: ', 0
+
 KEY_LEFT_HELP_TEXT          DB  'LEFT ARROW: MOVE LEFT', 0
 KEY_RIGHT_HELP_TEXT         DB  'RIGHT ARROW: MOVE RIGHT', 0
 KEY_DOWN_HELP_TEXT          DB  'DOWN ARROW: SOFT DROP', 0
 KEY_SPACEBAR_HELP_TEXT      DB  'SPACE BAR: HARD DROP', 0
 KEY_UP_HELP_TEXT            DB  'UP ARROW: ROTATE CLOCKWISE', 0
+
+NEXT_BLOCK_OFFSETS      DB    -1,  0,     1,  0,      2,  0      ; I
+                        DB    -1,  0,     0, -1,     -1, -1      ; O
+                        DB    -1,  0,    -1, -1,      1,  0      ; L
+                        DB    -1,  0,     1,  0,      1, -1      ; J
+                        DB    -1,  0,     1,  0,      0, -1      ; T
+                        DB    -1,  0,     0, -1,      1, -1      ; S
+                        DB     1,  0,     0, -1,     -1, -1      ; Z
 
 .code
 
@@ -27,11 +37,16 @@ KEY_UP_HELP_TEXT            DB  'UP ARROW: ROTATE CLOCKWISE', 0
 ; 반환값: 없음
 ;=========================================
 DrawStatusSection:
+    ; 지역 변수:
+    ;   - scoreString (ebp - 12)
+
     ; 프롤로그
     push ebp
     mov ebp, esp
+    sub esp, 40
     push ebx
     push edx
+    push edi
 
     ; status 섹션 그리기
     movzx ebx, STATUS_SECTION_TITLE_LENGTH
@@ -44,8 +59,50 @@ DrawStatusSection:
     push 1      ; topLeftX
     call drawSection
 
+    push 0      ; blue
+    push 255    ; green
+    push 0      ; red
+    call SetTextColor
+
+    push 12      ; blue
+    push 12      ; green
+    push 12      ; red
+    call SetBackColor
+
+    push 4
+    push 3
+    call GotoXY
+
+    lea edx, SCORE_TEXT
+    push 8
+    push edx
+    call Print
+
+    lea edi, [ebp - 12]
+    mov eax, [score]
+    push edi
+    push eax
+    call IntegerToAscii2
+
+    push eax
+    push edi
+    call Print
+
+    ; 텍스트 색상 지정
+    push 0      ; blue
+    push 255    ; green
+    push 255    ; red
+    call SetTextColor
+
+    ; 텍스트 배경 색상 지정
+    push 128
+    push 128
+    push 0
+    call SetBackColor
+
 lb_draw_status_section_return:
     ; 에필로그
+    pop edi
     pop edx
     pop ebx
     mov esp, ebp
@@ -135,6 +192,18 @@ DrawHelpSection:
     push 27
     push edx
     call Print
+
+    ; 텍스트 색상 지정
+    push 0      ; blue
+    push 255    ; green
+    push 255    ; red
+    call SetTextColor
+
+    ; 텍스트 배경 색상 지정
+    push 128
+    push 128
+    push 0
+    call SetBackColor
 
 lb_help_status_section_return:
     ; 에필로그
@@ -431,10 +500,10 @@ lb_draw_next_block:
     mov bl, [esi]
 
     ; esi = 블럭 오프셋
-    lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
+    lea esi, NEXT_BLOCK_OFFSETS  ; esi = &NEXT_BLOCK_OFFSETS
     mov eax, 6
-    mul bl                  ; eax = BLOCK_OFFSETS[block]
-    add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
+    mul bl                  ; eax = NEXT_BLOCK_OFFSETS[block]
+    add esi, eax            ; esi = &NEXT_BLOCK_OFFSETS[block][0]
 
     mov ecx, NUM_OFFSETS
 lb_calculate_actual_block_pos:
