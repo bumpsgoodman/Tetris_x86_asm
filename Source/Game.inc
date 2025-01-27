@@ -46,6 +46,7 @@ shadowX             DB ?
 shadowY             DB ?
 
 curOffsets          DB 6 DUP (?)    ; NUM_OFFSETS * 2 (x, y)
+shadowOffsets    DB 6 DUP (?)    ; NUM_OFFSETS * 2 (x, y)
 rotationCount       DB 0
 
 KEY_STATE_UP        EQU     0
@@ -123,6 +124,8 @@ lb_init_cur_offsets:
     movzx eax, block
     movzx ebx, blockX
     movzx edx, blockY
+    lea esi, curOffsets
+    push esi    ; pOffsets
     push BOARD_STATE_BLOCK
     push eax
     push edx
@@ -171,15 +174,71 @@ UpdateGame:
     ; -------------------------------------
 
     xor eax, eax
+
+    movzx ebx, shadowX     ; ebx = shadowX
+    movzx edx, shadowY     ; edx = shadowY
+
+    ; 기존 그림자 잔상 지우기
+    lea esi, shadowOffsets
+    push esi    ; pOffsets
     mov al, BOARD_STATE_SPACE
-    push eax
+    push eax            ; state
     movzx eax, block
-    push eax
-    movzx eax, blockY
-    push eax
-    movzx eax, blockX
-    push eax
+    push eax            ; blockPtr
+    push edx            ; y
+    push ebx            ; x
     call tryBlockToBoard
+
+    mov bl, [blockX]     ; ebx = blockX
+    mov dl, [blockY]     ; edx = blockY
+
+lb_shadow_loop:
+    lea esi, shadowOffsets
+    push esi    ; pOffsets
+    xor eax, eax
+    mov al, BOARD_STATE_SPACE
+    push eax            ; state
+    movzx eax, block
+    push eax            ; blockPtr
+    push edx            ; y
+    push ebx            ; x
+    call tryBlockToBoard
+
+    inc edx
+
+    lea esi, [curOffsets]       ; esi = &shadowOffsets
+    lea edi, [shadowOffsets]    ; edi = &curOffsets
+    mov ecx, 6
+lb_update_shadow_offsets:
+    movsb
+    loop lb_update_shadow_offsets
+
+    lea esi, shadowOffsets
+    push esi    ; pOffsets
+    mov al, BOARD_STATE_SHADOW
+    push eax            ; state
+    movzx eax, block
+    push eax            ; blockPtr
+    push edx            ; y
+    push ebx            ; x
+    call tryBlockToBoard
+
+    test eax, eax
+    jnz lb_shadow_loop
+
+    lea esi, shadowOffsets
+    push esi    ; pOffsets
+    dec edx
+    mov al, BOARD_STATE_SHADOW
+    push eax            ; state
+    movzx eax, block
+    push eax            ; blockPtr
+    push edx            ; y
+    push ebx            ; x
+    call tryBlockToBoard
+
+    mov [shadowX], bl
+    mov [shadowY], dl
 
     ; -------------------------------------
 
@@ -282,6 +341,8 @@ lb_space_key:
 
 lb_update:
     ; 블럭 그리기
+    lea esi, curOffsets
+    push esi    ; pOffsets
     xor eax, eax
     mov al, BOARD_STATE_BLOCK
     push eax    ; BOARD_STATE
@@ -315,6 +376,8 @@ lb_fixed:
     je lb_update_game_return
 
     ; 블럭 고정 시키기
+    lea esi, curOffsets
+    push esi    ; pOffsets
     push BOARD_STATE_FIXED
     xor eax, eax
     mov al, [block]

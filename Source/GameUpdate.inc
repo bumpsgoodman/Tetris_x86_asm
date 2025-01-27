@@ -68,6 +68,7 @@ lb_update_key_return:
 ;   - y: 블럭 y 좌표 (ebp + 12)
 ;   - block: 블럭 모양 (ebp + 16)
 ;   - state: 보드에 넣을 상태 (ebp + 20)
+;   - pOffsets: 오프셋 포인터 (ebp + 24)
 ; 반환값: 보드에 넣었다면 1, 넣지 못했다면 0 반환
 ;=========================================
 tryBlockToBoard:
@@ -99,7 +100,7 @@ tryBlockToBoard:
     ;-----------------------------------
 
     ; esi = 블럭 오프셋
-    lea esi, curOffsets
+    mov esi, [ebp + 24]
     ;lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
     ;mov ebx, [ebp + 16]     ; ebx = block
     ;mov eax, 6
@@ -196,7 +197,7 @@ lb_try_block_to_board_return:
     pop ebx
     mov esp, ebp
     pop ebp
-    ret 16
+    ret 20
 
 ;=========================================
 ; 함수 이름: isValidPos
