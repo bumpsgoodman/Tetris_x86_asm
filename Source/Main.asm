@@ -26,6 +26,10 @@ EXTRN ExitProcess@4 : PROC
 .data
 hello DB 'hello', 0     ; 테스트용
 
+FRAME_TIME  EQU 33  ; 30 fps
+start_time  DWORD   ?
+end_time    DWORD   ?
+
 .code
 
 ;=========================================
@@ -43,15 +47,34 @@ main:
 
     xor ebx, ebx
 
+    ; 프레임 시작 시간
+    call GetTickCount@0
+    mov start_time, eax
 lb_game_loop:
     inc ebx
     call IsRunningGame  ; 게임 오버인지 확인하기
     test eax, eax
     jnz lb_main_return       ; 테스트용으로 false 반환 시 루프 도는 형태로 진행
 
-    call UpdateGame     ; 게임 로직 업데이트
     call DrawGame       ; 게임 그리기
 
+lb_wait_next_frame:
+    call UpdateGame     ; 게임 로직 업데이트
+
+    ; 프레임 끝 시간
+    call GetTickCount@0
+    mov [end_time], eax
+
+    ; end_time - start_time
+    mov ecx, [start_time]
+    sub eax, ecx
+
+    cmp eax, FRAME_TIME
+    jl lb_wait_next_frame
+
+    ; start_time = end_time
+    mov eax, [end_time]
+    mov [start_time], eax
     jmp lb_game_loop
 
 lb_main_return:

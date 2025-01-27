@@ -1,3 +1,5 @@
+EXTRN GetTickCount@0 : PROC
+
 .data
 
 BOARD_ROWS  EQU     22
@@ -66,6 +68,10 @@ upKeyState          DD   0
 downKeyState        DD   0
 spaceKeyState       DD   0
 
+FALLING_TIME        EQU  1000
+startFallingTime    DD   0
+endFallingTIme      DD   0
+
 INCLUDE Random.inc
 INCLUDE GameDraw.inc
 INCLUDE GameUpdate.inc
@@ -105,7 +111,14 @@ lb_make_block_bundle_loop:
     call getNextBlock
     mov [block], al
 
+    ; 블럭 초기 위치 설정
     call setNextBlockPos
+
+    ; 그림자 초기 위치 설정
+    mov bl, [blockX]
+    mov [shadowX], bl
+    mov bl, [blockY]
+    mov [shadowY], bl
 
     ; 오프셋 초기화
     ; esi = 블럭 오프셋
@@ -122,16 +135,24 @@ lb_init_cur_offsets:
     movsb
     loop lb_init_cur_offsets
 
-    movzx eax, block
-    movzx ebx, blockX
-    movzx edx, blockY
-    lea esi, curOffsets
-    push esi    ; pOffsets
-    push BOARD_STATE_BLOCK
-    push eax
-    push edx
-    push ebx
-    call tryBlockToBoard
+    ; 그림자 오프셋 초기화
+    ; esi = 그림자 오프셋
+    lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
+    movzx ebx, block        ; ebx = block
+    mov eax, 6
+    imul eax, ebx           ; eax = BLOCK_OFFSETS[block]
+    add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
+
+    lea edi, shadowOffsets     ; edi = shadowOffsets
+
+    mov ecx, 6
+lb_init_shadow_offsets:
+    movsb
+    loop lb_init_shadow_offsets
+
+    ; 주기 타이머 초기화
+    call GetTickCount@0
+    mov [startFallingTime], eax
 
 lb_init_game_return:
     ; 에필로그
@@ -193,6 +214,13 @@ UpdateGame:
     mov bl, [blockX]     ; ebx = blockX
     mov dl, [blockY]     ; edx = blockY
 
+    lea esi, [curOffsets]       ; esi = &shadowOffsets
+    lea edi, [shadowOffsets]    ; edi = &curOffsets
+    mov ecx, 6
+lb_update_shadow_offsets:
+    movsb
+    loop lb_update_shadow_offsets
+
 lb_shadow_loop:
     lea esi, shadowOffsets
     push esi    ; pOffsets
@@ -206,13 +234,6 @@ lb_shadow_loop:
     call tryBlockToBoard
 
     inc edx
-
-    lea esi, [curOffsets]       ; esi = &shadowOffsets
-    lea edi, [shadowOffsets]    ; edi = &curOffsets
-    mov ecx, 6
-lb_update_shadow_offsets:
-    movsb
-    loop lb_update_shadow_offsets
 
     lea esi, shadowOffsets
     push esi    ; pOffsets
@@ -243,9 +264,32 @@ lb_update_shadow_offsets:
 
     ; -------------------------------------
 
+    ; 떨어지는 주기가 되면 떨어뜨리기
+    ; 프레임 끝 시간
+    push edx
+    call GetTickCount@0
+    mov [endFallingTIme], eax
+    pop edx
+
+    ; end_time - start_time
+    mov ecx, [startFallingTime]
+    sub eax, ecx
+
+    cmp eax, FALLING_TIME
+    jl lb_update_key
+
+    mov edx, [ebp - 8] ; edx = nextY
+    inc edx ; 떨어뜨리기
+    mov [ebp - 8], edx
+
+    ; start_time = end_time
+    mov eax, [endFallingTIme]
+    mov [startFallingTime], eax
+
     ; 키 업데이트
     ; -------------------------------------
 
+lb_update_key:
     ; 왼쪽 방향키 업데이트
     lea edi, leftKeyState
     mov eax, VK_LEFT
@@ -333,9 +377,6 @@ lb_down_key:
 lb_space_key:
     cmp spaceKeyState, KEY_STATE_DOWN
     jne lb_update
-
-    mov ebx, [ebp - 4] ; ebx = nextX
-    mov edx, [ebp - 8] ; edx = nextY
 
 lb_space_key_loop:
     lea esi, curOffsets
@@ -905,12 +946,6 @@ removeLine:
     ; esi = 블럭 오프셋
     lea esi, curOffsets
     inc esi
-    ;lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
-    ;mov ebx, [ebp + 16]     ; ebx = block
-    ;mov eax, 6
-    ;imul eax, ebx           ; eax = BLOCK_OFFSETS[block]
-    ;add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
-    ;inc esi                 ; esi = &BLOCK_OFFSETS[block][1] => y offset
 
     mov ecx, NUM_OFFSETS
 lb_find_max_y:

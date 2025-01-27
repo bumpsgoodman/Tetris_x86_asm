@@ -101,11 +101,6 @@ tryBlockToBoard:
 
     ; esi = 블럭 오프셋
     mov esi, [ebp + 24]
-    ;lea esi, BLOCK_OFFSETS  ; esi = &BLOCK_OFFSETS
-    ;mov ebx, [ebp + 16]     ; ebx = block
-    ;mov eax, 6
-    ;imul eax, ebx           ; eax = BLOCK_OFFSETS[block]
-    ;add esi, eax            ; esi = &BLOCK_OFFSETS[block][0]
 
     lea edi, [ebp - 4]      ; edi = &actualX[0]
     lea edx, [ebp - 16]     ; edx = &actualY[0]
