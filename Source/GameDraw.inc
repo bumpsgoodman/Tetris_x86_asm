@@ -134,6 +134,30 @@ DrawNextSection:
     push 53     ; topLeftX
     call drawSection
 
+    push 12  ; blue
+    push 12  ; green
+    push 12  ; red
+    call SetBackColor
+
+    mov ebx, 2
+    mov ecx, 24
+lb_clear_next_blocks:
+    push ecx
+
+    push ebx
+    push 54
+    call GotoXY
+
+    lea edx, SEQ_ERASE_CHAR15
+    push 6
+    push edx
+    call Print
+
+    inc ebx
+    
+    pop ecx
+    loop lb_clear_next_blocks
+
 lb_next_status_section_return:
     ; 에필로그
     pop edx

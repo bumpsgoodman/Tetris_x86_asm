@@ -72,6 +72,10 @@ FALLING_TIME        EQU  1000
 startFallingTime    DD   0
 endFallingTIme      DD   0
 
+score   DD  0
+
+bOnDraw DB  1
+
 INCLUDE Random.inc
 INCLUDE GameDraw.inc
 INCLUDE GameUpdate.inc
@@ -153,6 +157,9 @@ lb_init_shadow_offsets:
     ; 주기 타이머 초기화
     call GetTickCount@0
     mov [startFallingTime], eax
+
+    xor eax, eax
+    mov [score], eax
 
 lb_init_game_return:
     ; 에필로그
@@ -490,6 +497,9 @@ lb_update_cur_offsets:
     xor eax, eax
     mov rotationCount, al
 
+    inc eax
+    mov [bOnDraw], al
+
 lb_update_game_return:
     ; 에필로그
     pop edi
@@ -511,6 +521,10 @@ DrawGame:
     push ebp
     mov ebp, esp
 
+    ; 보드 그리기
+    call DrawBoard
+
+    ; 섹션 그리기
     ; 텍스트 색상 지정
     push 0      ; blue
     push 255    ; green
@@ -523,17 +537,20 @@ DrawGame:
     push 0
     call SetBackColor
 
-    ; 섹션 그리기
+    mov al, [bOnDraw]
+    test al, al
+    jz lb_draw_game_return
+
+    call DrawGameSection
     call DrawStatusSection
     call DrawHelpSection
-    call DrawGameSection
     call DrawNextSection
 
-    ; 보드 그리기
-    call DrawBoard
-
-    ; TODO: 다음 블럭 그리기
+    ; 다음 블럭 그리기
     call DrawNextBlocks
+
+    xor al, al
+    mov [bOnDraw], al
 
 lb_draw_game_return:
     ; 기본 텍스트 색상으로 변경
@@ -1020,6 +1037,8 @@ lb_remove_line:
 
     push edx
     call removeLineHelper
+
+    add [score], 5
 
     jmp lb_check_remove_line_cond
 

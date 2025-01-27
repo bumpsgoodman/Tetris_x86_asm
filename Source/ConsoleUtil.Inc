@@ -23,6 +23,7 @@ SEQ_MAIN_BUFFER         DB  1Bh, '[1049l', 0                    ; 메인 스크�
 SEQ_CLEAR_SCREEN        DB  1Bh, '[2J', 0                       ; 화면 지우기
 SEQ_ERASE_CHAR1         DB  1Bh, '[1X', 0                       ; 한 칸 지우기
 SEQ_ERASE_CHAR2         DB  1Bh, '[2X', 0                       ; 두 칸 지우기
+SEQ_ERASE_CHAR15        DB  1Bh, '[15X', 0                      ; 15 칸 지우기
 SEQ_MOVE_RIGHT_CURSOR1  DB  1Bh, '[1C', 0                       ; 커서 오른쪽으로 한 칸 이동
 SEQ_MOVE_RIGHT_CURSOR2  DB  1Bh, '[2C', 0                       ; 커서 오른쪽으로 두 칸 이동
 
